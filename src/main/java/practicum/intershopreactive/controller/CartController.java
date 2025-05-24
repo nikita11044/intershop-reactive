@@ -1,0 +1,73 @@
+package practicum.intershopreactive.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import practicum.intershopreactive.dto.cart.CartActionFormDto;
+import practicum.intershopreactive.service.CartService;
+import practicum.intershopreactive.util.ActionType;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+@Controller
+@RequestMapping("/cart")
+@RequiredArgsConstructor
+public class CartController {
+    private final CartService cartService;
+
+    @GetMapping
+    public Mono<String> getCart(Model model) {
+        return cartService.getAllCartItems()
+                .collectList()
+                .map(items -> {
+                    boolean empty = items.isEmpty();
+                    BigDecimal total = items.stream()
+                            .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getCount())))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    model.addAttribute("items", items);
+                    model.addAttribute("total", total);
+                    model.addAttribute("empty", empty);
+
+                    return "cart";
+                });
+    }
+
+    @PostMapping("/items/{productId}")
+    public Mono<String> modifyCartItem(
+            @PathVariable Long productId,
+            @ModelAttribute CartActionFormDto dto
+    ) {
+        ActionType actionType;
+
+        try {
+            actionType = ActionType.valueOf(dto.getAction().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalArgumentException("Unknown action: " + dto.getAction()));
+        }
+
+        Mono<Void> actionMono;
+
+        switch (actionType) {
+            case PLUS -> actionMono = cartService.addProduct(productId);
+            case MINUS -> actionMono = cartService.removeProduct(productId);
+            case DELETE -> actionMono = cartService.deleteProduct(productId);
+            default -> actionMono = Mono.error(new IllegalArgumentException("Unknown action: " + dto.getAction()));
+        }
+
+        return actionMono.thenReturn("redirect:/cart");
+    }
+
+    @DeleteMapping("/items/{productId}")
+    public Mono<String> deleteCartItem(@PathVariable Long productId) {
+        return cartService.deleteProduct(productId)
+                .thenReturn("redirect:/cart");
+    }
+}
