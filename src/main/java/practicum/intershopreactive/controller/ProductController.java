@@ -9,12 +9,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import practicum.intershopreactive.dto.cart.CartActionFormDto;
 import practicum.intershopreactive.dto.product.CreateProductDto;
 import practicum.intershopreactive.dto.product.ProductFormDto;
+import practicum.intershopreactive.service.CartService;
 import practicum.intershopreactive.service.ProductService;
+import practicum.intershopreactive.util.ActionType;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -27,6 +31,7 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
+    private final CartService cartService;
 
     @GetMapping
     public Mono<String> listProducts(
@@ -73,4 +78,34 @@ public class ProductController {
                 .doOnNext(product -> model.addAttribute("item", product))
                 .thenReturn("product");
     }
+
+    @PostMapping("/{id}/cart")
+    public Mono<String> modifyCartFromProduct(
+            @PathVariable Long id,
+            @ModelAttribute CartActionFormDto dto,
+            @RequestHeader(value = "Referer", required = false) String referer
+    ) {
+        ActionType actionType;
+
+        try {
+            actionType = ActionType.valueOf(dto.getAction().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalArgumentException("Unknown action: " + dto.getAction()));
+        }
+
+        Mono<Void> actionMono;
+        switch (actionType) {
+            case PLUS -> actionMono = cartService.addProduct(id);
+            case MINUS -> actionMono = cartService.removeProduct(id);
+            case DELETE -> actionMono = cartService.deleteProduct(id);
+            default -> {
+                return Mono.error(new IllegalArgumentException("Unknown action: " + dto.getAction()));
+            }
+        }
+
+        String redirectUrl = (referer != null) ? referer : "/products";
+
+        return actionMono.thenReturn("redirect:" + redirectUrl);
+    }
+
 }
