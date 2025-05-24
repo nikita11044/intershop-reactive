@@ -7,7 +7,7 @@ import practicum.intershopreactive.dto.order.OrderDto;
 import practicum.intershopreactive.dto.order.OrderItemDto;
 import practicum.intershopreactive.entity.Order;
 import practicum.intershopreactive.entity.OrderItem;
-import practicum.intershopreactive.mapper.OrderMapper;
+import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.r2dbc.OrderItemR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -38,37 +39,34 @@ public class OrderService {
                     Order order = new Order();
                     order.setCreatedAt(Instant.now());
 
-                    // Calculate total sum
                     BigDecimal totalSum = productsInCart.stream()
                             .map(product -> product.getPrice().multiply(BigDecimal.valueOf(product.getCount())))
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     order.setTotalSum(totalSum);
 
-                    // Save order first (without items)
                     return orderRepository.save(order)
                             .flatMap(savedOrder -> {
-                                // Create OrderItems with savedOrder id
                                 List<OrderItem> orderItems = productsInCart.stream()
                                         .map(product -> OrderItem.builder()
-                                                .orderId(savedOrder.getId())  // set orderId manually
+                                                .orderId(savedOrder.getId())
                                                 .productId(product.getId())
                                                 .quantity(product.getCount())
                                                 .priceAtPurchase(product.getPrice())
                                                 .build())
                                         .toList();
 
-                                // Save all order items
-                                return orderItemRepository.saveAll(orderItems)
-                                        .thenMany(
-                                                // Reset product counts to 0
-                                                Flux.fromIterable(productsInCart)
-                                                        .flatMap(product -> {
-                                                            product.setCount(0);
-                                                            return productRepository.save(product);
-                                                        })
-                                        )
-                                        .then(Mono.just(savedOrder.getId()));
+                                Mono<Void> saveOrderItems = orderItemRepository.saveAll(orderItems).then();
+
+                                Mono<Void> resetProducts = Flux.fromIterable(productsInCart)
+                                        .flatMap(product -> {
+                                            product.setCount(0);
+                                            return productRepository.save(product);
+                                        })
+                                        .then();
+
+                                return Mono.when(saveOrderItems, resetProducts)
+                                        .thenReturn(savedOrder.getId());
                             });
                 })
                 .as(transactionalOperator::transactional);
@@ -77,33 +75,53 @@ public class OrderService {
 
     public Flux<OrderDto> findAllWithItemsAndProducts() {
         return orderRepository.findAll()
-                .flatMap(order ->
-                        orderItemRepository.findByOrderId(order.getId())
-                                .flatMap(orderItem ->
-                                        productRepository.findById(orderItem.getProductId())
-                                                .map(product -> {
-                                                    return OrderItemDto.builder()
-                                                            .id(orderItem.getId())
-                                                            .productId(product.getId())
-                                                            .title(product.getTitle())
-                                                            .description(product.getDescription())
-                                                            .imgPath(product.getImgPath())
-                                                            .quantity(orderItem.getQuantity())
-                                                            .priceAtPurchase(orderItem.getPriceAtPurchase())
-                                                            .build();
-                                                })
-                                )
-                                .collectList()
-                                .map(orderItemDtos -> {
-                                    return OrderDto.builder()
-                                            .id(order.getId())
-                                            // .totalSum(order.getTotalSum())
-                                            .items(orderItemDtos)
-                                            .build();
-                                })
-                );
+                .collectList()
+                .flatMapMany(orders -> {
+                    List<Mono<OrderDto>> orderDtoMonos = orders.stream()
+                            .map(this::mapToOrderDto)
+                            .toList();
+
+                    return Mono.zip(orderDtoMonos, results ->
+                                    Arrays.stream(results)
+                                            .map(o -> (OrderDto) o)
+                                            .toList()
+                            )
+                            .flatMapMany(Flux::fromIterable);
+                });
     }
 
+    private Mono<OrderDto> mapToOrderDto(Order order) {
+        return orderItemRepository.findByOrderId(order.getId())
+                .flatMap(orderItem -> {
+                    Mono<Product> productMono = productRepository.findById(orderItem.getProductId());
+                    return Mono.zip(Mono.just(orderItem), productMono)
+                            .map(tuple -> {
+                                OrderItem oi = tuple.getT1();
+                                Product p = tuple.getT2();
+                                return OrderItemDto.builder()
+                                        .id(oi.getId())
+                                        .productId(p.getId())
+                                        .title(p.getTitle())
+                                        .description(p.getDescription())
+                                        .imgPath(p.getImgPath())
+                                        .quantity(oi.getQuantity())
+                                        .priceAtPurchase(oi.getPriceAtPurchase())
+                                        .build();
+                            });
+                })
+                .collectList()
+                .map(orderItemDtos -> {
+                    BigDecimal totalSum = orderItemDtos.stream()
+                            .map(item -> item.getPriceAtPurchase().multiply(BigDecimal.valueOf(item.getQuantity())))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    return OrderDto.builder()
+                            .id(order.getId())
+                            .items(orderItemDtos)
+                            .totalSum(totalSum)
+                            .build();
+                });
+    }
 
     public Mono<OrderDto> getOrderById(Long id) {
         return orderRepository.findById(id)
@@ -125,7 +143,7 @@ public class OrderService {
                                 .collectList()
                                 .map(orderItemDtos -> OrderDto.builder()
                                         .id(order.getId())
-                                        // .totalSum(order.getTotalSum())
+                                        .totalSum(order.getTotalSum())
                                         .items(orderItemDtos)
                                         .build())
                 );
