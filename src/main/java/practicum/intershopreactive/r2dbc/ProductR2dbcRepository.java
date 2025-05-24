@@ -25,4 +25,5 @@ public interface ProductR2dbcRepository extends R2dbcRepository<Product, Long> {
     Mono<Long> countProducts(@Param("search") String search,
                              @Param("searchPattern") String searchPattern);
 
+    Flux<Product> findByCountGreaterThan(int i);
 }
