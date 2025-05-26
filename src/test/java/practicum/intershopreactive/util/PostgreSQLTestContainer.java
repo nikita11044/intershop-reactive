@@ -1,6 +1,7 @@
 package practicum.intershopreactive.util;
 
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.MountableFile;
 
 public class PostgreSQLTestContainer extends PostgreSQLContainer<PostgreSQLTestContainer> {
 
@@ -9,6 +10,10 @@ public class PostgreSQLTestContainer extends PostgreSQLContainer<PostgreSQLTestC
 
     private PostgreSQLTestContainer() {
         super(IMAGE_VERSION);
+        withCopyFileToContainer(
+                MountableFile.forClasspathResource("init-db.sql"),
+                "/docker-entrypoint-initdb.d/init-db.sql"
+        );
     }
 
     public static PostgreSQLTestContainer getInstance() {
@@ -19,3 +24,4 @@ public class PostgreSQLTestContainer extends PostgreSQLContainer<PostgreSQLTestC
         return container;
     }
 }
+
