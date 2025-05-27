@@ -51,7 +51,7 @@ class ProductControllerTest {
                 .build();
 
         var productPage = ProductPageDto.builder()
-                .items(List.of(List.of(product)))
+                .items(List.of(product))
                 .search("")
                 .sort(SortingType.NO)
                 .paging(paging)

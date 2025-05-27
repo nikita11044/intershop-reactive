@@ -14,7 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductPageDto {
-    private List<List<ProductDto>> items;
+    private List<ProductDto> items;
     private String search;
     private SortingType sort;
     private PagingDto paging;

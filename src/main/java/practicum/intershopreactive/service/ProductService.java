@@ -49,7 +49,7 @@ public class ProductService {
                             .build();
 
                     return ProductPageDto.builder()
-                            .items(arrangeInRows(products))
+                            .items(products)
                             .search(search)
                             .sort(sort)
                             .paging(paging)

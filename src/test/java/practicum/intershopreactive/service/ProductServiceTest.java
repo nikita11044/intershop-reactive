@@ -161,8 +161,7 @@ class ProductServiceTest {
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
                 .expectNextMatches(result -> {
                     boolean itemsMatch = result.getItems().size() == 1 &&
-                            result.getItems().get(0).size() == 1 &&
-                            result.getItems().get(0).get(0).equals(testProductDto);
+                            result.getItems().get(0).equals(testProductDto);
                     boolean searchMatch = result.getSearch().equals(search);
                     boolean sortMatch = result.getSort().equals(sort);
                     boolean pagingMatch = result.getPaging().getPageNumber() == pageNumber &&
@@ -200,8 +199,7 @@ class ProductServiceTest {
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
                 .expectNextMatches(result -> {
                     boolean itemsMatch = result.getItems().size() == 1 &&
-                            result.getItems().get(0).size() == 1 &&
-                            result.getItems().get(0).get(0).equals(testProductDto);
+                            result.getItems().get(0).equals(testProductDto);
                     boolean searchMatch = result.getSearch().equals(search);
                     boolean sortMatch = result.getSort().equals(sort);
                     return itemsMatch && searchMatch && sortMatch;
@@ -243,7 +241,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void testFindProducts_arrangeProductsInRows_WhenMultipleProductsExist() {
+    void testFindProducts_returnsFlatListOfProducts() {
         Product product2 = new Product();
         product2.setId(2L);
         product2.setTitle("Product 2");
@@ -273,10 +271,12 @@ class ProductServiceTest {
 
         StepVerifier.create(productService.findProducts("", SortingType.NO, 10, 1))
                 .expectNextMatches(result -> {
-                    List<List<ProductDto>> items = result.getItems();
-                    return items.size() == 2 && // 4 products arranged in 2 rows
-                            items.get(0).size() == 3 && // First row has 3 products
-                            items.get(1).size() == 1;   // Second row has 1 product
+                    List<ProductDto> items = result.getItems();
+                    return items.size() == 4 && // Now we expect a flat list of 4 products
+                            items.contains(testProductDto) &&
+                            items.contains(productDto2) &&
+                            items.contains(productDto3) &&
+                            items.contains(productDto4);
                 })
                 .expectComplete()
                 .verify(Duration.ofSeconds(5));
