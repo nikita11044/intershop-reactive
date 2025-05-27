@@ -4,10 +4,10 @@ A simple Spring Boot-based internet shop.
 
 ### Built With
 
-* Spring
+* Spring Web Flux
 * Thymeleaf
 * PostgreSQL
-* Hibernate
+* R2DBC
 * Minio
 
 ### Prerequisites
@@ -21,7 +21,7 @@ A simple Spring Boot-based internet shop.
 1. Clone the repo
 
 ```bash
-git clone https://github.com/nikita11044/intershop.git
+git clone https://github.com/nikita11044/intershop-reactive.git
 cd intershop
 ```
 
@@ -49,7 +49,7 @@ The application is fully configured to be launched in Docker using the provided 
 
 1. **Clone the repository**:
     ```bash
-    git clone https://github.com/nikita11044/intershop.git
+    git clone https://github.com/nikita11044/intershop-reactive.git
     cd intershop
     ```
 
@@ -72,7 +72,7 @@ To run the application locally (outside of Docker), follow these steps:
 
 1. **Clone the repository**:
     ```bash
-    git clone https://github.com/nikita11044/intershop.git
+    git clone https://github.com/nikita11044/intershop-reactive.git
     cd intershop
     ```
 
@@ -111,7 +111,7 @@ To build the app into an executable JAR file, run the following command:
 ```
 The built JAR file will be located in the build/libs/ directory. You can run the JAR file with:
 ```bash
-java -jar build/libs/intershop-0.0.1-SNAPSHOT.jar
+java -jar build/libs/intershop-reactive-0.0.1-SNAPSHOT.jar
 ```
 
 ### Testing the Application
