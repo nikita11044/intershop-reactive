@@ -13,7 +13,7 @@ import java.io.InputStream;
 public class FileService {
     private final MinioService minioService;
     private static final String BUCKET_NAME = "intershop-bucket";
-    private static final String BASE_URL = "http://localhost:9000/" + BUCKET_NAME + "/";
+    private static final String BASE_URL = "http://intershop-minio:9000/" + BUCKET_NAME + "/";
 
     public Mono<String> uploadFile(FilePart filePart) {
         if (filePart == null) {
