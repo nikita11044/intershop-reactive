@@ -18,10 +18,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @DataR2dbcTest
 @ActiveProfiles("test")
+@AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseContextTest {
 
     protected static final PostgreSQLTestContainer postgres = PostgreSQLTestContainer.getInstance();
+
+    @Autowired
+    protected MockMvc mockMvc;
 
     @Autowired
     protected DatabaseClient databaseClient;
