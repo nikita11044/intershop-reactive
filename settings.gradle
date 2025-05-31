@@ -1,1 +1,3 @@
 rootProject.name = 'intershop-reactive'
+
+include 'shop'

@@ -3,8 +3,8 @@ FROM gradle:8.5-jdk21 AS build
 
 WORKDIR /app
 
-COPY gradlew gradlew.bat settings.gradle* build.gradle* ./
-COPY gradle gradle
+COPY ../gradlew gradlew.bat settings.gradle* build.gradle* ./
+COPY ../gradle gradle
 COPY src src
 
 RUN chmod +x gradlew
