@@ -97,7 +97,6 @@ class OrderControllerTest {
         return OrderItemDto.builder()
                 .id(11L)
                 .productId(1L)
-                .quantity(quantity)
                 .priceAtPurchase(price)
                 .build();
     }

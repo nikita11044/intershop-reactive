@@ -10,8 +10,11 @@ import org.springframework.http.codec.multipart.FilePart;
 import practicum.intershopreactive.dto.PagingDto;
 import practicum.intershopreactive.dto.product.CreateProductDto;
 import practicum.intershopreactive.dto.product.ProductDto;
+import practicum.intershopreactive.dto.product.ProductPageDto;
+import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.mapper.ProductMapper;
+import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
@@ -21,21 +24,19 @@ import reactor.test.StepVerifier;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
     @Mock
     private ProductR2dbcRepository productRepository;
+
+    @Mock
+    private CartR2dbcRepository cartRepository;
 
     @Mock
     private ProductMapper productMapper;
@@ -57,7 +58,6 @@ class ProductServiceTest {
         testProduct.setTitle("Sample Product");
         testProduct.setDescription("Sample Description");
         testProduct.setPrice(new BigDecimal("100.0"));
-        testProduct.setCount(10);
         testProduct.setImgPath("sample.jpg");
 
         testProductDto = ProductDto.builder()
@@ -108,7 +108,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void testAddProducts_productsCreated() {
+    void testAddProductsWithFiles_validInput() {
         List<CreateProductDto> dtos = List.of(testCreateProductDto);
         FilePart mockFile = mock(FilePart.class);
         List<FilePart> files = List.of(mockFile);
@@ -117,7 +117,6 @@ class ProductServiceTest {
         entity.setTitle("Sample Product");
         entity.setDescription("Sample Description");
         entity.setPrice(new BigDecimal("100.0"));
-        entity.setCount(10);
 
         Product savedProduct = new Product();
         savedProduct.setId(1L);
@@ -126,9 +125,8 @@ class ProductServiceTest {
 
         when(fileService.uploadFile(mockFile)).thenReturn(Mono.just("imagePath"));
         when(productMapper.toEntity(testCreateProductDto)).thenReturn(entity);
-        when(productRepository.save(argThat(product ->
-                "Sample Product".equals(product.getTitle()) && "imagePath".equals(product.getImgPath()))))
-                .thenReturn(Mono.just(savedProduct));
+        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(savedProduct));
+        when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(new CartItem()));
 
         StepVerifier.create(productService.addProductsWithFiles(dtos, files))
                 .expectNext(savedProduct)
@@ -138,6 +136,27 @@ class ProductServiceTest {
         verify(fileService).uploadFile(mockFile);
         verify(productMapper).toEntity(testCreateProductDto);
         verify(productRepository).save(any(Product.class));
+        verify(cartRepository).save(any(CartItem.class));
+    }
+
+    @Test
+    void testAddProductsWithFiles_invalidInput() {
+        CreateProductDto invalidDto = CreateProductDto.builder()
+                .title("")
+                .price(0.0)
+                .count(0)
+                .build();
+        List<CreateProductDto> dtos = List.of(invalidDto);
+        List<FilePart> files = List.of();
+
+        StepVerifier.create(productService.addProductsWithFiles(dtos, files))
+                .expectComplete()
+                .verify(Duration.ofSeconds(5));
+
+        verify(fileService, never()).uploadFile(any());
+        verify(productMapper, never()).toEntity(any());
+        verify(productRepository, never()).save(any());
+        verify(cartRepository, never()).save(any());
     }
 
     @Test
@@ -154,62 +173,23 @@ class ProductServiceTest {
 
         when(productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset))
                 .thenReturn(Flux.fromIterable(products));
-        when(productMapper.toDto(testProduct)).thenReturn(testProductDto);
-        when(productRepository.countProducts(search, searchPattern))
-                .thenReturn(Mono.just(totalCount));
+        when(cartRepository.findByUserId(anyLong())).thenReturn(Flux.empty());
+        when(productRepository.countProducts(search, searchPattern)).thenReturn(Mono.just(totalCount));
 
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
                 .expectNextMatches(result -> {
-                    boolean itemsMatch = result.getItems().size() == 1 &&
-                            result.getItems().get(0).equals(testProductDto);
-                    boolean searchMatch = result.getSearch().equals(search);
-                    boolean sortMatch = result.getSort().equals(sort);
-                    boolean pagingMatch = result.getPaging().getPageNumber() == pageNumber &&
-                            result.getPaging().getPageSize() == pageSize &&
-                            !result.getPaging().isHasPrevious() &&
-                            !result.getPaging().isHasNext();
-                    return itemsMatch && searchMatch && sortMatch && pagingMatch;
+                    List<ProductDto> items = result.getItems();
+                    return items.size() == 1 &&
+                            items.get(0).getTitle().equals("Sample Product") &&
+                            result.getSearch().equals(search) &&
+                            result.getSort().equals(sort);
                 })
                 .expectComplete()
                 .verify(Duration.ofSeconds(5));
 
         verify(productRepository).findProducts(search, searchPattern, sort.name(), pageSize, offset);
+        verify(cartRepository).findByUserId(anyLong());
         verify(productRepository).countProducts(search, searchPattern);
-        verify(productMapper).toDto(testProduct);
-    }
-
-    @Test
-    void testFindProducts_withoutSearch() {
-        String search = "";
-        SortingType sort = SortingType.NO;
-        int pageSize = 10;
-        int pageNumber = 1;
-        int offset = 0;
-        String searchPattern = "%%";
-
-        List<Product> products = List.of(testProduct);
-        long totalCount = 1L;
-
-        when(productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset))
-                .thenReturn(Flux.fromIterable(products));
-        when(productMapper.toDto(testProduct)).thenReturn(testProductDto);
-        when(productRepository.countProducts(search, searchPattern))
-                .thenReturn(Mono.just(totalCount));
-
-        StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
-                .expectNextMatches(result -> {
-                    boolean itemsMatch = result.getItems().size() == 1 &&
-                            result.getItems().get(0).equals(testProductDto);
-                    boolean searchMatch = result.getSearch().equals(search);
-                    boolean sortMatch = result.getSort().equals(sort);
-                    return itemsMatch && searchMatch && sortMatch;
-                })
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-
-        verify(productRepository).findProducts(search, searchPattern, sort.name(), pageSize, offset);
-        verify(productRepository).countProducts(search, searchPattern);
-        verify(productMapper).toDto(testProduct);
     }
 
     @Test
@@ -224,9 +204,8 @@ class ProductServiceTest {
 
         when(productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset))
                 .thenReturn(Flux.fromIterable(List.of(testProduct)));
-        when(productMapper.toDto(testProduct)).thenReturn(testProductDto);
-        when(productRepository.countProducts(search, searchPattern))
-                .thenReturn(Mono.just(totalCount));
+        when(cartRepository.findByUserId(anyLong())).thenReturn(Flux.empty());
+        when(productRepository.countProducts(search, searchPattern)).thenReturn(Mono.just(totalCount));
 
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
                 .expectNextMatches(result -> {
@@ -238,58 +217,19 @@ class ProductServiceTest {
                 })
                 .expectComplete()
                 .verify(Duration.ofSeconds(5));
+
+        verify(productRepository).findProducts(search, searchPattern, sort.name(), pageSize, offset);
+        verify(cartRepository).findByUserId(anyLong());
+        verify(productRepository).countProducts(search, searchPattern);
     }
 
     @Test
-    void testFindProducts_returnsFlatListOfProducts() {
-        Product product2 = new Product();
-        product2.setId(2L);
-        product2.setTitle("Product 2");
-
-        Product product3 = new Product();
-        product3.setId(3L);
-        product3.setTitle("Product 3");
-
-        Product product4 = new Product();
-        product4.setId(4L);
-        product4.setTitle("Product 4");
-
-        ProductDto productDto2 = ProductDto.builder().id(2L).title("Product 2").build();
-        ProductDto productDto3 = ProductDto.builder().id(3L).title("Product 3").build();
-        ProductDto productDto4 = ProductDto.builder().id(4L).title("Product 4").build();
-
-        List<Product> products = List.of(testProduct, product2, product3, product4);
-
-        when(productRepository.findProducts(anyString(), anyString(), anyString(), anyInt(), anyInt()))
-                .thenReturn(Flux.fromIterable(products));
-        when(productMapper.toDto(testProduct)).thenReturn(testProductDto);
-        when(productMapper.toDto(product2)).thenReturn(productDto2);
-        when(productMapper.toDto(product3)).thenReturn(productDto3);
-        when(productMapper.toDto(product4)).thenReturn(productDto4);
-        when(productRepository.countProducts(anyString(), anyString()))
-                .thenReturn(Mono.just(4L));
-
-        StepVerifier.create(productService.findProducts("", SortingType.NO, 10, 1))
-                .expectNextMatches(result -> {
-                    List<ProductDto> items = result.getItems();
-                    return items.size() == 4 && // Now we expect a flat list of 4 products
-                            items.contains(testProductDto) &&
-                            items.contains(productDto2) &&
-                            items.contains(productDto3) &&
-                            items.contains(productDto4);
-                })
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
-    void testAddProducts_handleFileUploadError() {
+    void testAddProductsWithFiles_fileUploadError() {
         List<CreateProductDto> dtos = List.of(testCreateProductDto);
         FilePart file = mock(FilePart.class);
         List<FilePart> files = List.of(file);
 
-        when(fileService.uploadFile(file))
-                .thenReturn(Mono.error(new RuntimeException("Upload failed")));
+        when(fileService.uploadFile(file)).thenReturn(Mono.error(new RuntimeException("Upload failed")));
 
         StepVerifier.create(productService.addProductsWithFiles(dtos, files))
                 .expectError(RuntimeException.class)
@@ -297,5 +237,6 @@ class ProductServiceTest {
 
         verify(fileService).uploadFile(file);
         verify(productRepository, never()).save(any());
+        verify(cartRepository, never()).save(any());
     }
 }

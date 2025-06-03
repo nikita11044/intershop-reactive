@@ -22,6 +22,10 @@ public class Order {
     private Long id;
 
     @NotNull
+    @Column("user_id")
+    private Long userId;
+
+    @NotNull
     @Column("created_at")
     private Instant createdAt;
 

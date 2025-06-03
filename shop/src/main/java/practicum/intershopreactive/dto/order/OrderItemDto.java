@@ -17,6 +17,6 @@ public class OrderItemDto {
     private String title;
     private String description;
     private String imgPath;
-    private Integer quantity;
+    private Long quantity;
     private BigDecimal priceAtPurchase;
 }

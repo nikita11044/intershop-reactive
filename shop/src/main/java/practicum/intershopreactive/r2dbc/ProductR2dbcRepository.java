@@ -24,6 +24,5 @@ public interface ProductR2dbcRepository extends R2dbcRepository<Product, Long> {
     @Query("SELECT COUNT(*) FROM products WHERE (:search IS NULL OR title ILIKE :searchPattern OR description ILIKE :searchPattern)")
     Mono<Long> countProducts(@Param("search") String search,
                              @Param("searchPattern") String searchPattern);
-
-    Flux<Product> findByCountGreaterThan(int i);
 }
+

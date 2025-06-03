@@ -31,7 +31,7 @@ public class OrderItem {
 
     @NotNull
     @Min(1)
-    private Integer quantity;
+    private Long quantity;
 
     @NotNull
     @Column("price_at_purchase")

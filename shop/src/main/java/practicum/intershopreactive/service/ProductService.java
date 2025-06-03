@@ -7,9 +7,11 @@ import practicum.intershopreactive.dto.PagingDto;
 import practicum.intershopreactive.dto.product.CreateProductDto;
 import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.dto.product.ProductPageDto;
+import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
-import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import practicum.intershopreactive.mapper.ProductMapper;
+import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
+import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -22,21 +24,49 @@ import java.util.stream.IntStream;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
+    // TODO: add user logic
+    private static final long USER_ID = 1;
 
     private final ProductR2dbcRepository productRepository;
+    private final CartR2dbcRepository cartRepository;
+
     private final ProductMapper productMapper;
+
     private final FileService fileService;
 
     public Mono<ProductPageDto> findProducts(String search, SortingType sort, int pageSize, int pageNumber) {
         int offset = (pageNumber - 1) * pageSize;
         String searchPattern = "%" + search + "%";
 
-        Flux<ProductDto> productsFlux = productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset)
-                .map(productMapper::toDto);
+        Flux<Product> productsFlux = productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset);
+
+        Mono<Map<Long, Long>> cartItemsMapMono = cartRepository.findByUserId(USER_ID)
+                .collectMap(CartItem::getProductId, CartItem::getCount);
+
+        Flux<ProductDto> productDtosFlux = productsFlux
+                .collectList()
+                .zipWith(cartItemsMapMono)
+                .flatMapMany(tuple -> {
+                    List<Product> products = tuple.getT1();
+                    Map<Long, Long> cartItemsMap = tuple.getT2();
+
+                    return Flux.fromIterable(products)
+                            .map(product -> {
+                                int count = cartItemsMap.getOrDefault(product.getId(), 0L).intValue();
+                                return ProductDto.builder()
+                                        .id(product.getId())
+                                        .title(product.getTitle())
+                                        .description(product.getDescription())
+                                        .imgPath(product.getImgPath())
+                                        .price(product.getPrice())
+                                        .count(count)
+                                        .build();
+                            });
+                });
 
         Mono<Long> countMono = productRepository.countProducts(search, searchPattern);
 
-        return Mono.zip(productsFlux.collectList(), countMono)
+        return Mono.zip(productDtosFlux.collectList(), countMono)
                 .map(tuple -> {
                     List<ProductDto> products = tuple.getT1();
                     Long total = tuple.getT2();
@@ -69,39 +99,41 @@ public class ProductService {
                 .collect(Collectors.toMap(i -> i, files::get));
 
         return Flux.range(0, productCreateDtos.size())
-                .filter(i -> {
-                    CreateProductDto dto = productCreateDtos.get(i);
-                    return dto.getTitle() != null && !dto.getTitle().isBlank() && dto.getPrice() > 0;
-                })
                 .flatMap(i -> {
                     CreateProductDto dto = productCreateDtos.get(i);
                     FilePart filePart = fileMap.get(i);
 
-                    if (dto.getCount() == null) {
-                        dto.setCount(0);
+                    if (
+                            dto.getTitle() == null
+                            || dto.getTitle().isBlank()
+                            || dto.getPrice() <= 0
+                            || dto.getCount() == null
+                            || dto.getCount() <= 0
+                    ) {
+                        return Mono.empty();
                     }
 
-                    Mono<String> imgPathMono;
-                    if (filePart != null) {
-                        imgPathMono = fileService.uploadFile(filePart);
-                    } else {
-                        imgPathMono = Mono.justOrEmpty(null);
-                    }
+                    Mono<String> imgPathMono = (filePart != null)
+                            ? fileService.uploadFile(filePart)
+                            : Mono.justOrEmpty(null);
 
-                    return imgPathMono.map(imgPath -> {
-                        Product product = productMapper.toEntity(dto);
-                        product.setImgPath(imgPath);
-                        return product;
-                    });
-                })
-                .flatMap(productRepository::save);
-    }
+                    return imgPathMono
+                            .map(imgPath -> {
+                                Product product = productMapper.toEntity(dto);
+                                product.setImgPath(imgPath);
+                                return product;
+                            })
+                            .flatMap(productRepository::save)
+                            .flatMap(savedProduct -> {
+                                CartItem cartItem = CartItem.builder()
+                                        .userId(USER_ID)
+                                        .productId(savedProduct.getId())
+                                        .count(dto.getCount().longValue())
+                                        .build();
 
-
-
-    private List<List<ProductDto>> arrangeInRows(List<ProductDto> products) {
-        return java.util.stream.IntStream.range(0, (products.size() + 2) / 3)
-                .mapToObj(i -> products.subList(i * 3, Math.min((i + 1) * 3, products.size())))
-                .toList();
+                                return cartRepository.save(cartItem)
+                                        .thenReturn(savedProduct);
+                            });
+                });
     }
 }

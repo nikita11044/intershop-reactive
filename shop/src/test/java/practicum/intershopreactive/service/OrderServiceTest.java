@@ -6,9 +6,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.transaction.reactive.TransactionalOperator;
+import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Order;
 import practicum.intershopreactive.entity.OrderItem;
 import practicum.intershopreactive.entity.Product;
+import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderItemR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
@@ -20,12 +22,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class OrderServiceTest {
 
@@ -34,6 +31,9 @@ class OrderServiceTest {
 
     @Mock
     private ProductR2dbcRepository productRepository;
+
+    @Mock
+    private CartR2dbcRepository cartRepository;
 
     @Mock
     private OrderItemR2dbcRepository orderItemRepository;
@@ -46,6 +46,8 @@ class OrderServiceTest {
 
     private Product product1;
     private Product product2;
+    private CartItem cartItem1;
+    private CartItem cartItem2;
 
     @BeforeEach
     void setUp() {
@@ -54,15 +56,31 @@ class OrderServiceTest {
         product1 = Product.builder()
                 .id(1L)
                 .title("Product 1")
+                .description("Description 1")
+                .imgPath("img1.jpg")
                 .price(BigDecimal.TEN)
-                .count(2)
                 .build();
 
         product2 = Product.builder()
                 .id(2L)
                 .title("Product 2")
+                .description("Description 2")
+                .imgPath("img2.jpg")
                 .price(new BigDecimal("20.00"))
-                .count(1)
+                .build();
+
+        cartItem1 = CartItem.builder()
+                .id(1L)
+                .userId(1L)
+                .productId(1L)
+                .count(2L)
+                .build();
+
+        cartItem2 = CartItem.builder()
+                .id(2L)
+                .userId(1L)
+                .productId(2L)
+                .count(1L)
                 .build();
 
         when(transactionalOperator.transactional(any(Mono.class)))
@@ -71,22 +89,26 @@ class OrderServiceTest {
 
     @Test
     void testPurchaseCart_successfulPurchase() {
-        List<Product> productsInCart = List.of(product1, product2);
+        List<CartItem> cartItems = List.of(cartItem1, cartItem2);
+        List<Product> products = List.of(product1, product2);
 
         Order savedOrder = Order.builder()
                 .id(100L)
                 .createdAt(Instant.now())
+                .userId(1L)
                 .totalSum(new BigDecimal("40.00"))
                 .build();
 
-        when(productRepository.findByCountGreaterThan(0))
-                .thenReturn(Flux.fromIterable(productsInCart));
+        when(cartRepository.findByUserId(1L))
+                .thenReturn(Flux.fromIterable(cartItems));
+        when(productRepository.findAllById(List.of(1L, 2L)))
+                .thenReturn(Flux.fromIterable(products));
         when(orderRepository.save(any(Order.class)))
                 .thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.saveAll(anyList()))
                 .thenReturn(Flux.empty());
-        when(productRepository.save(any(Product.class)))
-                .thenReturn(Mono.just(product1), Mono.just(product2));
+        when(cartRepository.deleteAllByUserId(1L))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectNext(100L)
@@ -94,12 +116,12 @@ class OrderServiceTest {
 
         verify(orderRepository, times(1)).save(any(Order.class));
         verify(orderItemRepository, times(1)).saveAll(anyList());
-        verify(productRepository, times(2)).save(any(Product.class));
+        verify(cartRepository, times(1)).deleteAllByUserId(1L);
     }
 
     @Test
     void testPurchaseCart_emptyCart() {
-        when(productRepository.findByCountGreaterThan(0))
+        when(cartRepository.findByUserId(1L))
                 .thenReturn(Flux.empty());
 
         StepVerifier.create(orderService.purchaseCart())
@@ -108,6 +130,8 @@ class OrderServiceTest {
                 .verify();
 
         verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).saveAll(anyList());
+        verify(cartRepository, never()).deleteAllByUserId(anyLong());
     }
 
     @Test
@@ -115,6 +139,7 @@ class OrderServiceTest {
         Order order = Order.builder()
                 .id(1L)
                 .createdAt(Instant.now())
+                .userId(1L)
                 .totalSum(new BigDecimal("30.00"))
                 .build();
 
@@ -122,7 +147,7 @@ class OrderServiceTest {
                 .id(1L)
                 .orderId(1L)
                 .productId(1L)
-                .quantity(2)
+                .quantity(2L)
                 .priceAtPurchase(BigDecimal.TEN)
                 .build();
 
@@ -131,7 +156,6 @@ class OrderServiceTest {
                 .title("Test Product")
                 .description("Desc")
                 .imgPath("img.jpg")
-                .count(5)
                 .price(BigDecimal.TEN)
                 .build();
 
@@ -143,7 +167,9 @@ class OrderServiceTest {
                 .thenReturn(Mono.just(product));
 
         StepVerifier.create(orderService.findAllWithItemsAndProducts())
-                .expectNextMatches(dto -> dto.getId() == 1L && dto.getTotalSum().compareTo(new BigDecimal("20.00")) == 0)
+                .expectNextMatches(dto -> dto.getId() == 1L &&
+                        dto.getTotalSum().compareTo(new BigDecimal("20.00")) == 0 &&
+                        dto.getItems().size() == 1)
                 .verifyComplete();
     }
 
@@ -152,6 +178,7 @@ class OrderServiceTest {
         Order order = Order.builder()
                 .id(1L)
                 .createdAt(Instant.now())
+                .userId(1L)
                 .totalSum(new BigDecimal("30.00"))
                 .build();
 
@@ -159,7 +186,7 @@ class OrderServiceTest {
                 .id(1L)
                 .orderId(1L)
                 .productId(1L)
-                .quantity(2)
+                .quantity(2L)
                 .priceAtPurchase(BigDecimal.TEN)
                 .build();
 
@@ -169,7 +196,6 @@ class OrderServiceTest {
                 .description("Desc")
                 .imgPath("img.jpg")
                 .price(BigDecimal.TEN)
-                .count(5)
                 .build();
 
         when(orderRepository.findById(1L))
@@ -180,7 +206,9 @@ class OrderServiceTest {
                 .thenReturn(Mono.just(product));
 
         StepVerifier.create(orderService.getOrderById(1L))
-                .expectNextMatches(dto -> dto.getId() == 1L && dto.getItems().size() == 1)
+                .expectNextMatches(dto -> dto.getId() == 1L &&
+                        dto.getItems().size() == 1 &&
+                        dto.getItems().get(0).getProductId() == 1L)
                 .verifyComplete();
     }
 

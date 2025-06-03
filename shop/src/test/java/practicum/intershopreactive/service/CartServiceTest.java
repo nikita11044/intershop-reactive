@@ -5,165 +5,180 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.mockito.junit.jupiter.MockitoExtension;
 import practicum.intershopreactive.dto.product.ProductDto;
+import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
-import practicum.intershopreactive.mapper.ProductMapper;
+import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.argThat;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-@ExtendWith(SpringExtension.class)
+@ExtendWith(MockitoExtension.class)
 public class CartServiceTest {
 
     @Mock
     private ProductR2dbcRepository productRepository;
 
     @Mock
-    private ProductMapper productMapper;
+    private CartR2dbcRepository cartRepository;
 
     @InjectMocks
     private CartService cartService;
 
-    private Product product;
+    private static final long USER_ID = 1L;
+    private static final long PRODUCT_ID = 1L;
+
+    private CartItem cartItem;
 
     @BeforeEach
     void setUp() {
-        product = Product.builder()
+        cartItem = CartItem.builder()
                 .id(1L)
-                .title("Sample Product")
-                .count(1)
+                .userId(USER_ID)
+                .productId(PRODUCT_ID)
+                .count(1L)
                 .build();
     }
 
     @Test
-    void testAddProduct_productExists() {
-        when(productRepository.findById(1L)).thenReturn(Mono.just(product));
-        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(product));
+    void testAddProduct_existingCartItem() {
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
+        when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
 
-        StepVerifier.create(cartService.addProduct(1L))
+        StepVerifier.create(cartService.addProduct(PRODUCT_ID))
                 .verifyComplete();
 
-        verify(productRepository, times(1)).save(argThat(p -> p.getCount() == 2));
+        verify(cartRepository, times(1)).save(argThat(item -> item.getCount() == 2L));
     }
 
     @Test
-    void testAddProduct_productNotFound() {
-        when(productRepository.findById(1L)).thenReturn(Mono.empty());
+    void testAddProduct_newCartItem() {
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
+        when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
 
-        StepVerifier.create(cartService.addProduct(1L))
-                .expectError(NoSuchElementException.class)
-                .verify();
+        StepVerifier.create(cartService.addProduct(PRODUCT_ID))
+                .verifyComplete();
 
-        verify(productRepository, never()).save(any());
+        verify(cartRepository, times(1)).save(argThat(item ->
+                item.getProductId().equals(PRODUCT_ID) &&
+                        item.getUserId().equals(USER_ID) &&
+                        item.getCount() == 1L
+        ));
     }
 
     @Test
     void testRemoveProduct_countGreaterThanOne() {
-        product.setCount(3);
-        when(productRepository.findById(1L)).thenReturn(Mono.just(product));
-        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(product));
+        cartItem.setCount(3L);
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
+        when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
 
-        StepVerifier.create(cartService.removeProduct(1L))
+        StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
 
-        verify(productRepository, times(1)).save(argThat(p -> p.getCount() == 2));
+        verify(cartRepository, times(1)).save(argThat(item -> item.getCount() == 2L));
     }
 
     @Test
     void testRemoveProduct_countEqualsOne() {
-        product.setCount(1);
-        when(productRepository.findById(1L)).thenReturn(Mono.just(product));
-        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(product));
+        cartItem.setCount(1L);
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
+        when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
 
-        StepVerifier.create(cartService.removeProduct(1L))
+        StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
 
-        verify(productRepository, times(1)).save(argThat(p -> p.getCount() == 0));
+        verify(cartRepository, times(1)).deleteById(cartItem.getId());
     }
 
     @Test
     void testRemoveProduct_productNotFound() {
-        when(productRepository.findById(1L)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(cartService.removeProduct(1L))
+        StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .expectError(NoSuchElementException.class)
                 .verify();
 
-        verify(productRepository, never()).save(any());
+        verify(cartRepository, never()).save(any());
+        verify(cartRepository, never()).deleteById((Long) any());
     }
 
     @Test
     void testDeleteProduct_productExists() {
-        when(productRepository.findById(1L)).thenReturn(Mono.just(product));
-        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(product));
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
+        when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
 
-        StepVerifier.create(cartService.deleteProduct(1L))
+        StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .verifyComplete();
 
-        verify(productRepository, times(1)).save(argThat(p -> p.getCount() == 0));
+        verify(cartRepository, times(1)).deleteById(cartItem.getId());
     }
 
     @Test
     void testDeleteProduct_productNotFound() {
-        when(productRepository.findById(1L)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
 
-        StepVerifier.create(cartService.deleteProduct(1L))
+        StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .expectError(NoSuchElementException.class)
                 .verify();
 
-        verify(productRepository, never()).save(any());
+        verify(cartRepository, never()).deleteById((Long) any());
     }
 
     @Test
     void testGetAllCartItems_withItems() {
+        CartItem cartItem1 = CartItem.builder()
+                .id(1L)
+                .userId(USER_ID)
+                .productId(1L)
+                .count(2L)
+                .build();
+
+        CartItem cartItem2 = CartItem.builder()
+                .id(2L)
+                .userId(USER_ID)
+                .productId(2L)
+                .count(1L)
+                .build();
+
         Product product1 = Product.builder()
                 .id(1L)
                 .title("Product 1")
-                .count(1)
+                .description("Description 1")
+                .imgPath("/images/product1.jpg")
+                .price(BigDecimal.valueOf(10.0))
                 .build();
 
         Product product2 = Product.builder()
                 .id(2L)
                 .title("Product 2")
-                .count(0)
+                .description("Description 2")
+                .imgPath("/images/product2.jpg")
+                .price(BigDecimal.valueOf(20.0))
                 .build();
 
-        when(productRepository.findAll()).thenReturn(Flux.just(product1, product2));
-
-        ProductDto dto1 = ProductDto.builder()
-                .id(1L)
-                .title("Product 1")
-                .build();
-
-        when(productMapper.toDto(product1)).thenReturn(dto1);
+        when(cartRepository.findByUserId(USER_ID)).thenReturn(Flux.just(cartItem1, cartItem2));
+        when(productRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(product1, product2));
 
         StepVerifier.create(cartService.getAllCartItems())
-                .expectNext(dto1)
-                .verifyComplete();
-    }
-
-    @Test
-    void testGetAllCartItems_noItems() {
-        Product product1 = Product.builder()
-                .id(1L)
-                .title("Product 1")
-                .count(0)
-                .build();
-
-        when(productRepository.findAll()).thenReturn(Flux.just(product1));
-
-        StepVerifier.create(cartService.getAllCartItems())
+                .expectNextMatches(dto ->
+                        dto.getId().equals(1L) &&
+                                dto.getTitle().equals("Product 1") &&
+                                dto.getCount() == 2
+                )
+                .expectNextMatches(dto ->
+                        dto.getId().equals(2L) &&
+                                dto.getTitle().equals("Product 2") &&
+                                dto.getCount() == 1
+                )
                 .verifyComplete();
     }
 }
