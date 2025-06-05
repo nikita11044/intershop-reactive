@@ -1,6 +1,4 @@
 plugins {
-    id 'java'
-    id 'org.springframework.boot' version '3.4.5' apply false
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -31,44 +29,5 @@ subprojects {
 
     tasks.named('test') {
         useJUnitPlatform()
-    }
-}
-
-project(':shop') {
-    apply plugin: 'org.springframework.boot'
-
-    dependencies {
-        implementation 'org.springframework.boot:spring-boot-starter-actuator'
-        implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-        implementation 'org.springframework.boot:spring-boot-starter-validation'
-        implementation 'org.springframework.boot:spring-boot-starter-webflux'
-
-        // Liquibase dependencies
-        implementation 'org.liquibase:liquibase-core'
-        implementation 'org.springframework:spring-jdbc'
-
-        // Database drivers
-        runtimeOnly 'org.postgresql:postgresql'
-        runtimeOnly 'org.postgresql:r2dbc-postgresql'
-
-        // MinIO
-        implementation 'io.minio:minio:8.5.7'
-
-        // Lombok & MapStruct
-        compileOnly 'org.projectlombok:lombok'
-        annotationProcessor 'org.projectlombok:lombok'
-        implementation 'org.mapstruct:mapstruct:1.5.5.Final'
-        annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
-
-        // Remove if not using Thymeleaf
-        implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-
-        // Test dependencies
-        testImplementation 'org.springframework.boot:spring-boot-starter-test'
-        testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-        testImplementation 'io.projectreactor:reactor-test'
-        testImplementation 'org.testcontainers:junit-jupiter'
-        testImplementation 'org.testcontainers:postgresql'
-        testImplementation 'org.testcontainers:r2dbc'
     }
 }

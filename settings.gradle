@@ -1,3 +1,4 @@
 rootProject.name = 'intershop-reactive'
 
+include 'payment'
 include 'shop'
