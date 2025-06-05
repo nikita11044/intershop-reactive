@@ -93,10 +93,11 @@ class OrderControllerTest {
                 .build();
     }
 
-    private OrderItemDto createOrderItem(BigDecimal price, int quantity) {
+    private OrderItemDto createOrderItem(BigDecimal price, long quantity) {
         return OrderItemDto.builder()
                 .id(11L)
                 .productId(1L)
+                .quantity(quantity)
                 .priceAtPurchase(price)
                 .build();
     }
