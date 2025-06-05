@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+  description: RESTful payment
+
+paths:
+  /balance/{userId}:
+    get:
+      summary: Get user account balance
+      description: Returns the current balance of the specified user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the user
+      responses:
+        '200':
+          description: Balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '404':
+          description: User not found
+
+  /payment:
+    post:
+      summary: Process a payment
+      description: Attempts to deduct the specified amount from the user's balance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Unique identifier of the user
+        balance:
+          type: number
+          format: none
+          description: Current balance of the user
+          x-java-type: java.math.BigDecimal
+      required:
+        - userId
+        - balance
+
+    PaymentRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Unique identifier of the user
+        amount:
+          type: number
+          format: none
+          description: Amount to be charged
+          x-java-type: java.math.BigDecimal
+      required:
+        - userId
+        - amount
+
+    PaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Indicates if the payment was successful
+        remainingBalance:
+          type: number
+          format: none
+          description: Remaining balance after the payment
+          x-java-type: java.math.BigDecimal
+      required:
+        - success
+        - remainingBalance
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+      required:
+        - error

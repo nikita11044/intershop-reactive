@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.0'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.openapi.generator' version '7.4.0'
 }
 
 group = 'practicum'
@@ -13,31 +14,63 @@ java {
 	}
 }
 
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
-}
-
 repositories {
 	mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
-	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.liquibase:liquibase-core'
-	compileOnly 'org.projectlombok:lombok'
-	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+	implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'io.swagger.core.v3:swagger-annotations:2.2.15'
 	runtimeOnly 'org.postgresql:postgresql'
 	runtimeOnly 'org.postgresql:r2dbc-postgresql'
+
+	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'io.projectreactor:reactor-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+// OpenAPI
+openApiGenerate {
+	generatorName = "spring"
+	inputSpec = "$rootDir/src/main/resources/payment-openapi.yaml"
+	outputDir = "$buildDir/generated" // можно оставить здесь, но ты можешь изменить путь на src/gen/java, если хочешь
+	apiPackage = "practicum.payment.api"
+	modelPackage = "practicum.payment.model"
+	invokerPackage = "practicum.payment.invoker"
+	generateApiTests = false
+	generateModelTests = false
+	configOptions = [
+			interfaceOnly           : "true",
+			skipDefaultInterface    : "true",
+			requestMappingMode      : "controller",
+			reactive                : "true",
+			useSpringBoot3          : "true",
+			useJakartaEe            : "true",
+			useTags                 : "true",
+			dateLibrary             : "java8",
+			openApiNullable         : "false",
+			serializableModel       : "true",
+			returnSuccessCode       : "true",
+			hideGenerationTimestamp : "true"
+	]
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir "$buildDir/generated/src/main/java"
+		}
+	}
+}
+
+compileJava.dependsOn tasks.openApiGenerate
 
 tasks.named('test') {
 	useJUnitPlatform()
