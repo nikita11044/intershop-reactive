@@ -29,6 +29,20 @@ services:
     volumes:
       - /data
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: intershop-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     image: intershop
     container_name: intershop-app
@@ -36,7 +50,13 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
-      - minio
+      postgres:
+        condition: service_started
+      minio:
+        condition: service_started
+      redis:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379

@@ -1,5 +1,6 @@
 package practicum.intershopreactive.r2dbc;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.data.repository.query.Param;
@@ -8,8 +9,11 @@ import practicum.intershopreactive.entity.Product;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Set;
+
 @Repository
 public interface ProductR2dbcRepository extends R2dbcRepository<Product, Long> {
+
     @Query("SELECT * FROM products WHERE (:search IS NULL OR title ILIKE :searchPattern OR description ILIKE :searchPattern) ORDER BY " +
             "CASE WHEN :sort = 'ALPHA' THEN title::text " +
             "     WHEN :sort = 'PRICE' THEN price::text " +

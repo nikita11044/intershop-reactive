@@ -1,4 +1,4 @@
-package practicum.intershopreactive.config;
+package practicum.intershopreactive.config.minio;
 
 import io.minio.MinioClient;
 import org.springframework.beans.factory.annotation.Value;

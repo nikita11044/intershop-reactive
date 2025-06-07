@@ -2,12 +2,15 @@ package practicum.intershopreactive.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import practicum.intershopreactive.mapper.ProductMapper;
+import practicum.intershopreactive.service.cache.CartCacheService;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -21,9 +24,12 @@ public class CartService {
     // TODO: add user logic
     private static final long USER_ID = 1;
 
-    private final ProductR2dbcRepository productRepository;
     private final CartR2dbcRepository cartRepository;
 
+    private final CartCacheService cartCacheService;
+    private final ProductCacheService productCacheService;
+
+    @Transactional
     public Mono<Void> addProduct(Long productId) {
         return cartRepository
                 .findByProductIdAndUserId(productId, USER_ID)
@@ -40,9 +46,13 @@ public class CartService {
 
                     return cartRepository.save(cartItem);
                 }))
-                .then();
+                .then(Mono.when(
+                        cartCacheService.evictCartItemsCache(),
+                        productCacheService.evictProductsCache()
+                ));
     }
 
+    @Transactional
     public Mono<Void> removeProduct(Long productId) {
         return cartRepository
                 .findByProductIdAndUserId(productId, USER_ID)
@@ -56,21 +66,27 @@ public class CartService {
                     }
                     return cartRepository.save(cartItem);
                 })
-                .then();
+                .then(Mono.when(
+                        cartCacheService.evictCartItemsCache(),
+                        productCacheService.evictProductsCache()
+                ));
     }
 
+    @Transactional
     public Mono<Void> deleteProduct(Long productId) {
         return cartRepository
                 .findByProductIdAndUserId(productId, USER_ID)
                 .switchIfEmpty(Mono.error(new NoSuchElementException("Product not found")))
-                .flatMap(cartItem -> {
-                    return cartRepository.deleteById(cartItem.getId());
-                })
-                .then();
+                .flatMap(cartItem -> cartRepository.deleteById(cartItem.getId()))
+                .then(Mono.when(
+                        cartCacheService.evictCartItemsCache(),
+                        productCacheService.evictProductsCache()
+                ));
     }
 
     public Flux<ProductDto> getAllCartItems() {
-        return cartRepository.findByUserId(USER_ID)
+        return cartCacheService
+                .findByUserId(USER_ID)
                 .collectList()
                 .flatMapMany(cartItems -> {
                     List<Long> productIds = cartItems.stream()
@@ -78,7 +94,8 @@ public class CartService {
                             .distinct()
                             .collect(Collectors.toList());
 
-                    return productRepository.findAllById(productIds)
+                    return Flux.fromIterable(productIds)
+                            .flatMap(productCacheService::findById)
                             .collectMap(Product::getId)
                             .flatMapMany(productMap -> Flux.fromIterable(cartItems)
                                     .map(cartItem -> {

@@ -3,6 +3,7 @@ package practicum.intershopreactive.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import practicum.intershopreactive.dto.PagingDto;
 import practicum.intershopreactive.dto.product.CreateProductDto;
 import practicum.intershopreactive.dto.product.ProductDto;
@@ -12,6 +13,7 @@ import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.mapper.ProductMapper;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -33,12 +35,13 @@ public class ProductService {
     private final ProductMapper productMapper;
 
     private final FileService fileService;
+    private final ProductCacheService productCacheService;
 
     public Mono<ProductPageDto> findProducts(String search, SortingType sort, int pageSize, int pageNumber) {
         int offset = (pageNumber - 1) * pageSize;
         String searchPattern = "%" + search + "%";
 
-        Flux<Product> productsFlux = productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset);
+        Flux<Product> productsFlux = productCacheService.findProducts(search, searchPattern, sort.name(), pageSize, offset);
 
         Mono<Map<Long, Long>> cartItemsMapMono = cartRepository.findByUserId(USER_ID)
                 .collectMap(CartItem::getProductId, CartItem::getCount);
@@ -88,11 +91,30 @@ public class ProductService {
     }
 
     public Mono<ProductDto> getProductById(Long id) {
-        return productRepository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Product not found with id: " + id)))
-                .map(productMapper::toDto);
+        Mono<Product> productMono = productCacheService.findById(id)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Product not found with id: " + id)));
+
+        Mono<Long> countMono = cartRepository.findByProductIdAndUserId(id, USER_ID)
+                .map(CartItem::getCount)
+                .defaultIfEmpty(0L);
+
+        return Mono.zip(productMono, countMono)
+                .map(tuple -> {
+                    Product product = tuple.getT1();
+                    Long count = tuple.getT2();
+
+                    return ProductDto.builder()
+                            .id(product.getId())
+                            .title(product.getTitle())
+                            .description(product.getDescription())
+                            .imgPath(product.getImgPath())
+                            .price(product.getPrice())
+                            .count(count.intValue())
+                            .build();
+                });
     }
 
+    @Transactional
     public Flux<Product> addProductsWithFiles(List<CreateProductDto> productCreateDtos, List<FilePart> files) {
         Map<Integer, FilePart> fileMap = IntStream.range(0, files.size())
                 .boxed()
@@ -134,6 +156,10 @@ public class ProductService {
                                 return cartRepository.save(cartItem)
                                         .thenReturn(savedProduct);
                             });
-                });
+                })
+                .collectList()
+                .flatMapMany(products -> productCacheService.evictProductsCache()
+                        .thenMany(Flux.fromIterable(products))
+                );
     }
 }

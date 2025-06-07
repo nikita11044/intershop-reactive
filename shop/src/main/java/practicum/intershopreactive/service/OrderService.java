@@ -2,6 +2,7 @@ package practicum.intershopreactive.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import practicum.intershopreactive.dto.order.OrderDto;
 import practicum.intershopreactive.dto.order.OrderItemDto;
@@ -13,6 +14,8 @@ import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderItemR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
+import practicum.intershopreactive.service.cache.CartCacheService;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -32,13 +35,16 @@ public class OrderService {
     private static final long USER_ID = 1;
 
     private final OrderR2dbcRepository orderRepository;
-    private final ProductR2dbcRepository productRepository;
     private final CartR2dbcRepository cartRepository;
     private final OrderItemR2dbcRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
 
+    private final ProductCacheService productCacheService;
+    private final CartCacheService cartCacheService;
+
+    @Transactional
     public Mono<Long> purchaseCart() {
-        return cartRepository.findByUserId(USER_ID)
+        return cartCacheService.findByUserId(USER_ID)
                 .collectList()
                 .flatMap(cartItems -> {
                     if (cartItems.isEmpty()) {
@@ -49,7 +55,8 @@ public class OrderService {
                             .map(CartItem::getProductId)
                             .toList();
 
-                    return productRepository.findAllById(productIds)
+                    return Flux.fromIterable(productIds)
+                            .flatMap(productCacheService::findById)
                             .collectList()
                             .flatMap(products -> {
                                 Map<Long, Product> productMap = products.stream()
@@ -90,6 +97,10 @@ public class OrderService {
                                             Mono<Void> deleteCartItems = cartRepository.deleteAllByUserId(USER_ID);
 
                                             return Mono.when(saveOrderItems, deleteCartItems)
+                                                    .then(Mono.when(
+                                                            cartCacheService.evictCartItemsCache(),
+                                                            productCacheService.evictProductsCache()
+                                                    ))
                                                     .thenReturn(savedOrder.getId());
                                         });
                             });
@@ -118,7 +129,7 @@ public class OrderService {
     private Mono<OrderDto> mapToOrderDto(Order order) {
         return orderItemRepository.findByOrderId(order.getId())
                 .flatMap(orderItem -> {
-                    Mono<Product> productMono = productRepository.findById(orderItem.getProductId());
+                    Mono<Product> productMono = productCacheService.findById(orderItem.getProductId());
                     return Mono.zip(Mono.just(orderItem), productMono)
                             .map(tuple -> {
                                 OrderItem oi = tuple.getT1();
@@ -154,7 +165,7 @@ public class OrderService {
                 .flatMap(order ->
                         orderItemRepository.findByOrderId(order.getId())
                                 .flatMap(orderItem ->
-                                        productRepository.findById(orderItem.getProductId())
+                                        productCacheService.findById(orderItem.getProductId())
                                                 .map(product -> OrderItemDto.builder()
                                                         .id(orderItem.getId())
                                                         .productId(product.getId())
