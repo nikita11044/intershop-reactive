@@ -120,8 +120,6 @@ build/reports/tests/test/index.html
 
 The application relies on the following two tables: users and account
 
-```
-
 > ⚠️ **Note:**  
 > The application does **not** include any initial data for these tables.  
 > You must manually insert user and account records into the database for the application to function correctly.
