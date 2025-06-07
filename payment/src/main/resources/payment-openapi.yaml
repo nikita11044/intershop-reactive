@@ -77,7 +77,8 @@ components:
       type: object
       properties:
         userId:
-          type: string
+          type: integer
+          format: int64
           description: Unique identifier of the user
         amount:
           type: number

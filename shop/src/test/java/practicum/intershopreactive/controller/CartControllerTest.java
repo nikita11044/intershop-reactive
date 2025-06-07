@@ -32,7 +32,7 @@ class CartControllerTest {
     @Test
     void getCart_shouldReturnEmptyCartInitially() {
         when(cartService.getAllCartItems())
-                .thenReturn(Flux.empty());
+                .thenReturn(Mono.empty());
 
         webTestClient.get()
                 .uri("/cart")
@@ -90,9 +90,9 @@ class CartControllerTest {
         ProductDto productAfterDecrement = createProduct(1L, "Monitor", new BigDecimal("300.00"), 1);
 
         when(cartService.getAllCartItems())
-                .thenReturn(Flux.just(productAfterFirstAdd))
-                .thenReturn(Flux.just(productAfterSecondAdd))
-                .thenReturn(Flux.just(productAfterDecrement));
+                .thenReturn(Mono.just(productAfterFirstAdd))
+                .thenReturn(Mono.just(productAfterSecondAdd))
+                .thenReturn(Mono.just(productAfterDecrement));
 
         MultiValueMap<String, String> plusAction = new LinkedMultiValueMap<>();
         plusAction.add("action", "PLUS");
@@ -168,7 +168,7 @@ class CartControllerTest {
                 .thenReturn(Mono.empty());
 
         when(cartService.getAllCartItems())
-                .thenReturn(Flux.empty());
+                .thenReturn(Mono.empty());
 
         MultiValueMap<String, String> plusAction = new LinkedMultiValueMap<>();
         plusAction.add("action", "PLUS");

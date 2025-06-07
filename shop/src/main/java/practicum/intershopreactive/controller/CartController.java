@@ -25,17 +25,12 @@ public class CartController {
     @GetMapping
     public Mono<String> getCart(Model model) {
         return cartService.getAllCartItems()
-                .collectList()
-                .map(items -> {
-                    boolean empty = items.isEmpty();
-                    BigDecimal total = items.stream()
-                            .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getCount())))
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                    model.addAttribute("items", items);
-                    model.addAttribute("total", total);
-                    model.addAttribute("empty", empty);
-
+                .map(cart -> {
+                    model.addAttribute("items", cart.getItems());
+                    model.addAttribute("total", cart.getTotal());
+                    model.addAttribute("empty", cart.isEmpty());
+                    model.addAttribute("canBuy", cart.isCanBuy());
+                    model.addAttribute("available", cart.isAvailable());
                     return "cart";
                 });
     }

@@ -4,6 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import practicum.intershopreactive.client.PaymentClient;
+import practicum.intershopreactive.model.PaymentRequest;
 import practicum.intershopreactive.dto.order.OrderDto;
 import practicum.intershopreactive.dto.order.OrderItemDto;
 import practicum.intershopreactive.entity.CartItem;
@@ -13,13 +16,13 @@ import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderItemR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderR2dbcRepository;
-import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
 import practicum.intershopreactive.service.cache.CartCacheService;
 import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +44,8 @@ public class OrderService {
 
     private final ProductCacheService productCacheService;
     private final CartCacheService cartCacheService;
+
+    private final PaymentService paymentService;
 
     @Transactional
     public Mono<Long> purchaseCart() {
@@ -89,25 +94,34 @@ public class OrderService {
                                         .totalSum(totalSum)
                                         .build();
 
-                                return orderRepository.save(order)
-                                        .flatMap(savedOrder -> {
-                                            orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
+                                return paymentService
+                                        .processPayment(
+                                                order.getTotalSum(),
+                                                order.getUserId()
+                                        ).flatMap(response -> {
+                                            if (Boolean.TRUE.equals(response.getSuccess())) {
+                                                return orderRepository.save(order)
+                                                        .flatMap(savedOrder -> {
+                                                            orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
 
-                                            Mono<Void> saveOrderItems = orderItemRepository.saveAll(orderItems).then();
-                                            Mono<Void> deleteCartItems = cartRepository.deleteAllByUserId(USER_ID);
+                                                            Mono<Void> saveOrderItems = orderItemRepository.saveAll(orderItems).then();
+                                                            Mono<Void> deleteCartItems = cartRepository.deleteAllByUserId(USER_ID);
 
-                                            return Mono.when(saveOrderItems, deleteCartItems)
-                                                    .then(Mono.when(
-                                                            cartCacheService.evictCartItemsCache(),
-                                                            productCacheService.evictProductsCache()
-                                                    ))
-                                                    .thenReturn(savedOrder.getId());
+                                                            return Mono.when(saveOrderItems, deleteCartItems)
+                                                                    .then(Mono.when(
+                                                                            cartCacheService.evictCartItemsCache(),
+                                                                            productCacheService.evictProductsCache()
+                                                                    ))
+                                                                    .thenReturn(savedOrder.getId());
+                                                        });
+                                            } else {
+                                                return Mono.error(new IllegalStateException("Payment failed"));
+                                            }
                                         });
                             });
                 })
                 .as(transactionalOperator::transactional);
     }
-
 
     public Flux<OrderDto> findAllWithItemsAndProducts() {
         return orderRepository.findAll()

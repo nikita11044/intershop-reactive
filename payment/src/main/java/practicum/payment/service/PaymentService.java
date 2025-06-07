@@ -15,7 +15,7 @@ public class PaymentService {
 
     private final AccountR2dbcRepository accountRepository;
 
-    @Transactional
+
     public Mono<Void> processPayment(Long userId, BigDecimal amount) {
         return accountRepository.findByUserId(userId)
                 .switchIfEmpty(Mono.error(

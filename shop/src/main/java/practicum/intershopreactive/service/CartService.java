@@ -3,6 +3,7 @@ package practicum.intershopreactive.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import practicum.intershopreactive.dto.cart.CartDto;
 import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
@@ -14,6 +15,8 @@ import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -28,6 +31,7 @@ public class CartService {
 
     private final CartCacheService cartCacheService;
     private final ProductCacheService productCacheService;
+    private final BalanceService balanceService;
 
     @Transactional
     public Mono<Void> addProduct(Long productId) {
@@ -84,33 +88,72 @@ public class CartService {
                 ));
     }
 
-    public Flux<ProductDto> getAllCartItems() {
-        return cartCacheService
-                .findByUserId(USER_ID)
+    public Mono<CartDto> getAllCartItems() {
+        return cartCacheService.findByUserId(USER_ID)
                 .collectList()
-                .flatMapMany(cartItems -> {
+                .flatMap(cartItems -> {
+                    if (cartItems.isEmpty()) {
+                        return Mono.just(
+                                CartDto.builder()
+                                        .items(Collections.emptyList())
+                                        .empty(true)
+                                        .total(BigDecimal.ZERO)
+                                        .canBuy(false)
+                                        .available(true)
+                                        .build()
+                        );
+                    }
+
                     List<Long> productIds = cartItems.stream()
                             .map(CartItem::getProductId)
                             .distinct()
-                            .collect(Collectors.toList());
+                            .toList();
 
                     return Flux.fromIterable(productIds)
                             .flatMap(productCacheService::findById)
                             .collectMap(Product::getId)
-                            .flatMapMany(productMap -> Flux.fromIterable(cartItems)
-                                    .map(cartItem -> {
-                                        Product product = productMap.get(cartItem.getProductId());
-                                        return ProductDto.builder()
-                                                .id(product.getId())
-                                                .title(product.getTitle())
-                                                .description(product.getDescription())
-                                                .imgPath(product.getImgPath())
-                                                .price(product.getPrice())
-                                                .count(cartItem.getCount().intValue())
-                                                .build();
-                                    })
-                            );
+                            .flatMap(productMap -> {
+                                List<ProductDto> productDtos = cartItems.stream()
+                                        .map(cartItem -> {
+                                            Product product = productMap.get(cartItem.getProductId());
+                                            return ProductDto.builder()
+                                                    .id(product.getId())
+                                                    .title(product.getTitle())
+                                                    .description(product.getDescription())
+                                                    .imgPath(product.getImgPath())
+                                                    .price(product.getPrice())
+                                                    .count(cartItem.getCount().intValue())
+                                                    .build();
+                                        })
+                                        .toList();
+
+                                BigDecimal total = productDtos.stream()
+                                        .map(dto -> dto.getPrice().multiply(BigDecimal.valueOf(dto.getCount())))
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                                return balanceService.getUserBalance(USER_ID)
+                                        .map(balanceResponse -> {
+                                            boolean canBuy = balanceResponse.getBalance().compareTo(total) >= 0;
+                                            return CartDto.builder()
+                                                    .items(productDtos)
+                                                    .empty(false)
+                                                    .total(total)
+                                                    .canBuy(canBuy)
+                                                    .available(true)
+                                                    .build();
+                                        })
+                                        .onErrorResume(ex -> Mono.just(
+                                                CartDto.builder()
+                                                        .items(productDtos)
+                                                        .empty(false)
+                                                        .total(total)
+                                                        .canBuy(false)
+                                                        .available(false)
+                                                        .build()
+                                        ));
+                            });
                 });
     }
+
 
 }
