@@ -129,7 +129,6 @@ class CartControllerTest {
                 .exchange()
                 .expectStatus().is3xxRedirection();
 
-        // Verify cart after second increment (2 items × 300.00 = 600.00)
         webTestClient.get()
                 .uri("/cart")
                 .exchange()
@@ -207,11 +206,9 @@ class CartControllerTest {
 
     @Test
     void modifyCartItem_shouldReturn500ForInvalidAction() {
-        // Given
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("action", "INVALID");
 
-        // When & Then
         webTestClient.post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)

@@ -55,6 +55,6 @@ public class PaymentControllerTest extends BaseWebTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
-                .expectStatus().isBadRequest(); // или 409, если так настроен сервис
+                .expectStatus().isBadRequest();
     }
 }
