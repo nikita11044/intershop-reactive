@@ -39,8 +39,8 @@ dependencies {
 // OpenAPI
 openApiGenerate {
 	generatorName = "spring"
-	inputSpec = "$rootDir/src/main/resources/payment-openapi.yaml"
-	outputDir = "$buildDir/generated" // можно оставить здесь, но ты можешь изменить путь на src/gen/java, если хочешь
+	inputSpec = "$projectDir/src/main/resources/payment-openapi.yaml"
+	outputDir = "$buildDir/generated"
 	apiPackage = "practicum.payment.api"
 	modelPackage = "practicum.payment.model"
 	invokerPackage = "practicum.payment.invoker"

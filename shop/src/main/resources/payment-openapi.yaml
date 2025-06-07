@@ -7,6 +7,9 @@ info:
 paths:
   /balance/{userId}:
     get:
+      tags:
+        - Balance
+      operationId: getUserBalance
       summary: Get user account balance
       description: Returns the current balance of the specified user.
       parameters:
@@ -28,6 +31,9 @@ paths:
 
   /payment:
     post:
+      tags:
+        - Payment
+      operationId: processPayment
       summary: Process a payment
       description: Attempts to deduct the specified amount from the user's balance.
       requestBody:

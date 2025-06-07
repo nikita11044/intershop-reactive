@@ -46,22 +46,26 @@ dependencies {
 // OpenAPI
 openApiGenerate {
     generatorName = "java"
-    inputSpec = "$rootDir/payment/src/main/resources/payment-openapi.yaml"
+    inputSpec = "$projectDir/src/main/resources/payment-openapi.yaml"
     outputDir = "$buildDir/generated"
-    apiPackage = "practicum.shop.payment.api"
-    modelPackage = "practicum.shop.payment.model"
-    invokerPackage = "practicum.shop.payment.invoker"
+    apiPackage = "practicum.intershopreactive.api"
+    modelPackage = "practicum.intershopreactive.model"
+    invokerPackage = "practicum.intershopreactive.invoker"
+
+    generateApiTests = false
+    generateModelTests = false
+
     configOptions = [
-            library             : "webclient",
-            reactive            : "true",
-            useSpringBoot3      : "true",
-            dateLibrary         : "java8",
-            serializationLibrary: "jackson",
-            openApiNullable     : "false"
+            library              : "webclient",
+            useJakartaEe         : "true",
+            openApiNullable      : "false",
+            hideGenerationTimestamp: "true",
+            useTags              : "true",
+            serializableModel    : "true",
+            dateLibrary          : "java8"
     ]
 }
 
-// Add generated sources to compilation
 sourceSets {
     main {
         java {
