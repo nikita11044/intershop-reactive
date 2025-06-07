@@ -118,19 +118,8 @@ build/reports/tests/test/index.html
 
 ## Database Schema
 
-The application relies on the following two tables:
+The application relies on the following two tables: users and account
 
-```sql
-CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
-);
-
-CREATE TABLE accounts (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    balance NUMERIC(10, 2) NOT NULL
-);
 ```
 
 > ⚠️ **Note:**  
