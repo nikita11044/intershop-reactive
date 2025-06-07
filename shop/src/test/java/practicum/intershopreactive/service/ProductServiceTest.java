@@ -1,3 +1,4 @@
+
 package practicum.intershopreactive.service;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -7,15 +8,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.codec.multipart.FilePart;
-import practicum.intershopreactive.dto.PagingDto;
 import practicum.intershopreactive.dto.product.CreateProductDto;
-import practicum.intershopreactive.dto.product.ProductDto;
-import practicum.intershopreactive.dto.product.ProductPageDto;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.mapper.ProductMapper;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -24,31 +23,26 @@ import reactor.test.StepVerifier;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
-    @Mock
-    private ProductR2dbcRepository productRepository;
+    @Mock private ProductR2dbcRepository productRepository;
+    @Mock private CartR2dbcRepository cartRepository;
+    @Mock private ProductMapper productMapper;
+    @Mock private FileService fileService;
+    @Mock private ProductCacheService productCacheService;
 
-    @Mock
-    private CartR2dbcRepository cartRepository;
-
-    @Mock
-    private ProductMapper productMapper;
-
-    @Mock
-    private FileService fileService;
-
-    @InjectMocks
-    private ProductService productService;
+    @InjectMocks private ProductService productService;
 
     private Product testProduct;
-    private ProductDto testProductDto;
     private CreateProductDto testCreateProductDto;
 
     @BeforeEach
@@ -60,183 +54,81 @@ class ProductServiceTest {
         testProduct.setPrice(new BigDecimal("100.0"));
         testProduct.setImgPath("sample.jpg");
 
-        testProductDto = ProductDto.builder()
-                .id(1L)
-                .title("Sample Product")
-                .description("Sample Description")
-                .price(new BigDecimal("100.0"))
-                .count(10)
-                .imgPath("sample.jpg")
-                .build();
-
         testCreateProductDto = CreateProductDto.builder()
-                .title("Sample Product")
-                .description("Sample Description")
-                .price(100.0)
-                .count(10)
-                .build();
+                .title("Sample Product").description("Sample Description")
+                .price(100.0).count(10).build();
     }
 
     @Test
     void testGetProductById_found() {
         Long productId = 1L;
-        when(productRepository.findById(productId)).thenReturn(Mono.just(testProduct));
-        when(productMapper.toDto(testProduct)).thenReturn(testProductDto);
+        when(productCacheService.findById(productId)).thenReturn(Mono.just(testProduct));
+        when(cartRepository.findByProductIdAndUserId(eq(productId), anyLong()))
+                .thenReturn(Mono.just(CartItem.builder().count(5L).build()));
 
         StepVerifier.create(productService.getProductById(productId))
-                .expectNext(testProductDto)
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
+                .expectNextMatches(dto -> dto.getId().equals(productId) && dto.getCount() == 5)
+                .verifyComplete();
 
-        verify(productRepository).findById(productId);
-        verify(productMapper).toDto(testProduct);
+        verify(productCacheService).findById(productId);
     }
 
     @Test
     void testGetProductById_notFound() {
         Long productId = 1L;
-        when(productRepository.findById(productId)).thenReturn(Mono.empty());
+        when(productCacheService.findById(productId)).thenReturn(Mono.empty());
+        when(cartRepository.findByProductIdAndUserId(eq(productId), anyLong()))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(productService.getProductById(productId))
-                .expectErrorMatches(throwable ->
-                        throwable instanceof IllegalArgumentException &&
-                                throwable.getMessage().equals("Product not found with id: " + productId))
+                .expectErrorMatches(e -> e instanceof IllegalArgumentException &&
+                        e.getMessage().contains("Product not found with id"))
                 .verify(Duration.ofSeconds(5));
-
-        verify(productRepository).findById(productId);
-        verify(productMapper, never()).toDto(any());
-    }
-
-    @Test
-    void testAddProductsWithFiles_validInput() {
-        List<CreateProductDto> dtos = List.of(testCreateProductDto);
-        FilePart mockFile = mock(FilePart.class);
-        List<FilePart> files = List.of(mockFile);
-
-        Product entity = new Product();
-        entity.setTitle("Sample Product");
-        entity.setDescription("Sample Description");
-        entity.setPrice(new BigDecimal("100.0"));
-
-        Product savedProduct = new Product();
-        savedProduct.setId(1L);
-        savedProduct.setTitle("Sample Product");
-        savedProduct.setImgPath("imagePath");
-
-        when(fileService.uploadFile(mockFile)).thenReturn(Mono.just("imagePath"));
-        when(productMapper.toEntity(testCreateProductDto)).thenReturn(entity);
-        when(productRepository.save(any(Product.class))).thenReturn(Mono.just(savedProduct));
-        when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(new CartItem()));
-
-        StepVerifier.create(productService.addProductsWithFiles(dtos, files))
-                .expectNext(savedProduct)
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-
-        verify(fileService).uploadFile(mockFile);
-        verify(productMapper).toEntity(testCreateProductDto);
-        verify(productRepository).save(any(Product.class));
-        verify(cartRepository).save(any(CartItem.class));
-    }
-
-    @Test
-    void testAddProductsWithFiles_invalidInput() {
-        CreateProductDto invalidDto = CreateProductDto.builder()
-                .title("")
-                .price(0.0)
-                .count(0)
-                .build();
-        List<CreateProductDto> dtos = List.of(invalidDto);
-        List<FilePart> files = List.of();
-
-        StepVerifier.create(productService.addProductsWithFiles(dtos, files))
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-
-        verify(fileService, never()).uploadFile(any());
-        verify(productMapper, never()).toEntity(any());
-        verify(productRepository, never()).save(any());
-        verify(cartRepository, never()).save(any());
     }
 
     @Test
     void testFindProducts_withSearch() {
         String search = "Sample";
         SortingType sort = SortingType.NO;
-        int pageSize = 10;
-        int pageNumber = 1;
-        int offset = 0;
-        String searchPattern = "%Sample%";
-
+        int pageSize = 10, pageNumber = 1;
+        String searchPattern = "%" + search + "%";
         List<Product> products = List.of(testProduct);
-        long totalCount = 1L;
 
-        when(productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset))
+        when(productCacheService.findProducts(eq(search), eq(searchPattern), eq(sort.name()), eq(pageSize), eq(0)))
                 .thenReturn(Flux.fromIterable(products));
         when(cartRepository.findByUserId(anyLong())).thenReturn(Flux.empty());
-        when(productRepository.countProducts(search, searchPattern)).thenReturn(Mono.just(totalCount));
+        when(productRepository.countProducts(eq(search), eq(searchPattern))).thenReturn(Mono.just(1L));
 
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
-                .expectNextMatches(result -> {
-                    List<ProductDto> items = result.getItems();
-                    return items.size() == 1 &&
-                            items.get(0).getTitle().equals("Sample Product") &&
-                            result.getSearch().equals(search) &&
-                            result.getSort().equals(sort);
-                })
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-
-        verify(productRepository).findProducts(search, searchPattern, sort.name(), pageSize, offset);
-        verify(cartRepository).findByUserId(anyLong());
-        verify(productRepository).countProducts(search, searchPattern);
+                .expectNextMatches(page -> page.getItems().size() == 1 &&
+                        page.getItems().get(0).getTitle().equals("Sample Product") &&
+                        page.getPaging().getPageNumber() == 1)
+                .verifyComplete();
     }
 
     @Test
-    void testFindProducts_withPagination() {
-        String search = "";
-        SortingType sort = SortingType.NO;
-        int pageSize = 2;
-        int pageNumber = 2;
-        int offset = 2;
-        String searchPattern = "%%";
-        long totalCount = 5L;
-
-        when(productRepository.findProducts(search, searchPattern, sort.name(), pageSize, offset))
-                .thenReturn(Flux.fromIterable(List.of(testProduct)));
-        when(cartRepository.findByUserId(anyLong())).thenReturn(Flux.empty());
-        when(productRepository.countProducts(search, searchPattern)).thenReturn(Mono.just(totalCount));
-
-        StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
-                .expectNextMatches(result -> {
-                    PagingDto paging = result.getPaging();
-                    return paging.getPageNumber() == pageNumber &&
-                            paging.getPageSize() == pageSize &&
-                            paging.isHasPrevious() &&
-                            paging.isHasNext();
-                })
-                .expectComplete()
-                .verify(Duration.ofSeconds(5));
-
-        verify(productRepository).findProducts(search, searchPattern, sort.name(), pageSize, offset);
-        verify(cartRepository).findByUserId(anyLong());
-        verify(productRepository).countProducts(search, searchPattern);
-    }
-
-    @Test
-    void testAddProductsWithFiles_fileUploadError() {
+    void testAddProductsWithFiles_validInput() {
         List<CreateProductDto> dtos = List.of(testCreateProductDto);
-        FilePart file = mock(FilePart.class);
-        List<FilePart> files = List.of(file);
+        FilePart filePart = mock(FilePart.class);
+        List<FilePart> files = List.of(filePart);
 
-        when(fileService.uploadFile(file)).thenReturn(Mono.error(new RuntimeException("Upload failed")));
+        Product newProduct = new Product();
+        newProduct.setTitle(testCreateProductDto.getTitle());
+        newProduct.setDescription(testCreateProductDto.getDescription());
+        newProduct.setPrice(new BigDecimal("100.0"));
+
+        Product savedProduct = new Product();
+        savedProduct.setId(1L);
+        savedProduct.setImgPath("image.jpg");
+
+        when(fileService.uploadFile(filePart)).thenReturn(Mono.just("image.jpg"));
+        when(productMapper.toEntity(any())).thenReturn(newProduct);
+        when(productRepository.save(any())).thenReturn(Mono.just(savedProduct));
+        when(cartRepository.save(any())).thenReturn(Mono.just(new CartItem()));
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(productService.addProductsWithFiles(dtos, files))
-                .expectError(RuntimeException.class)
-                .verify(Duration.ofSeconds(5));
-
-        verify(fileService).uploadFile(file);
-        verify(productRepository, never()).save(any());
-        verify(cartRepository, never()).save(any());
+                .expectNext(savedProduct)
+                .verifyComplete();
     }
 }

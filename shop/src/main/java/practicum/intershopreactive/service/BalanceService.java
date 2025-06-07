@@ -5,11 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import practicum.intershopreactive.client.BalanceClient;
 import practicum.intershopreactive.model.BalanceResponse;
-import practicum.intershopreactive.model.PaymentRequest;
-import practicum.intershopreactive.model.PaymentResponse;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.net.ConnectException;
 
 @Service

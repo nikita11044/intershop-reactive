@@ -1,7 +1,8 @@
 package practicum.intershopreactive.config.redis.error;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.stereotype.Component;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class IntershopCacheErrorHandler implements CacheErrorHandler {
-    private static final Logger logger = LogManager.getLogger(IntershopCacheErrorHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(IntershopCacheErrorHandler.class);
 
     @Override
     public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {

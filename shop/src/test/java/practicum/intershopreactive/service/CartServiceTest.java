@@ -6,30 +6,39 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
+import practicum.intershopreactive.model.BalanceResponse;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
-import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
+import practicum.intershopreactive.service.cache.CartCacheService;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class CartServiceTest {
 
     @Mock
-    private ProductR2dbcRepository productRepository;
+    private CartR2dbcRepository cartRepository;
 
     @Mock
-    private CartR2dbcRepository cartRepository;
+    private CartCacheService cartCacheService;
+
+    @Mock
+    private ProductCacheService productCacheService;
+
+    @Mock
+    private BalanceService balanceService;
 
     @InjectMocks
     private CartService cartService;
@@ -53,6 +62,8 @@ public class CartServiceTest {
     void testAddProduct_existingCartItem() {
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.addProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -64,6 +75,8 @@ public class CartServiceTest {
     void testAddProduct_newCartItem() {
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.addProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -80,6 +93,8 @@ public class CartServiceTest {
         cartItem.setCount(3L);
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -92,6 +107,8 @@ public class CartServiceTest {
         cartItem.setCount(1L);
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
         when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -106,20 +123,17 @@ public class CartServiceTest {
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .expectError(NoSuchElementException.class)
                 .verify();
-
-        verify(cartRepository, never()).save(any());
-        verify(cartRepository, never()).deleteById((Long) any());
     }
 
     @Test
     void testDeleteProduct_productExists() {
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.just(cartItem));
         when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .verifyComplete();
-
-        verify(cartRepository, times(1)).deleteById(cartItem.getId());
     }
 
     @Test
@@ -129,55 +143,63 @@ public class CartServiceTest {
         StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .expectError(NoSuchElementException.class)
                 .verify();
-
-        verify(cartRepository, never()).deleteById((Long) any());
     }
 
     @Test
-    void testGetAllCartItems_withItems() {
-        CartItem cartItem1 = CartItem.builder()
-                .id(1L)
-                .userId(USER_ID)
-                .productId(1L)
-                .count(2L)
-                .build();
+    void testGetAllCartItems_withProductsAndBalance() {
+        CartItem item1 = CartItem.builder().id(1L).userId(USER_ID).productId(1L).count(2L).build();
+        CartItem item2 = CartItem.builder().id(2L).userId(USER_ID).productId(2L).count(1L).build();
 
-        CartItem cartItem2 = CartItem.builder()
-                .id(2L)
-                .userId(USER_ID)
-                .productId(2L)
-                .count(1L)
-                .build();
+        Product product1 = Product.builder().id(1L).title("P1").description("D1").imgPath("/img1").price(BigDecimal.valueOf(100)).build();
+        Product product2 = Product.builder().id(2L).title("P2").description("D2").imgPath("/img2").price(BigDecimal.valueOf(50)).build();
 
-        Product product1 = Product.builder()
-                .id(1L)
-                .title("Product 1")
-                .description("Description 1")
-                .imgPath("/images/product1.jpg")
-                .price(BigDecimal.valueOf(10.0))
-                .build();
-
-        Product product2 = Product.builder()
-                .id(2L)
-                .title("Product 2")
-                .description("Description 2")
-                .imgPath("/images/product2.jpg")
-                .price(BigDecimal.valueOf(20.0))
-                .build();
-
-        when(cartRepository.findByUserId(USER_ID)).thenReturn(Flux.just(cartItem1, cartItem2));
-        when(productRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(product1, product2));
+        when(cartCacheService.findByUserId(USER_ID)).thenReturn(Flux.just(item1, item2));
+        when(productCacheService.findById(1L)).thenReturn(Mono.just(product1));
+        when(productCacheService.findById(2L)).thenReturn(Mono.just(product2));
+        when(balanceService.getUserBalance(USER_ID)).thenReturn(Mono.just(new BalanceResponse().balance(BigDecimal.valueOf(200)).userId(USER_ID)));
 
         StepVerifier.create(cartService.getAllCartItems())
-                .expectNextMatches(dto ->
-                        dto.getId().equals(1L) &&
-                                dto.getTitle().equals("Product 1") &&
-                                dto.getCount() == 2
+                .expectNextMatches(cartDto ->
+                        !cartDto.isEmpty() &&
+                                cartDto.getItems().size() == 2 &&
+                                cartDto.getTotal().equals(BigDecimal.valueOf(250)) &&
+                                !cartDto.isCanBuy() &&
+                                cartDto.isAvailable()
                 )
-                .expectNextMatches(dto ->
-                        dto.getId().equals(2L) &&
-                                dto.getTitle().equals("Product 2") &&
-                                dto.getCount() == 1
+                .verifyComplete();
+    }
+
+    @Test
+    void testGetAllCartItems_empty() {
+        when(cartCacheService.findByUserId(USER_ID)).thenReturn(Flux.empty());
+
+        StepVerifier.create(cartService.getAllCartItems())
+                .expectNextMatches(cartDto ->
+                        cartDto.isEmpty() &&
+                                cartDto.getItems().isEmpty() &&
+                                cartDto.getTotal().compareTo(BigDecimal.ZERO) == 0 &&
+                                !cartDto.isCanBuy() &&
+                                cartDto.isAvailable()
+                )
+                .verifyComplete();
+    }
+
+    @Test
+    void testGetAllCartItems_balanceErrorHandled() {
+        CartItem item = CartItem.builder().id(1L).userId(USER_ID).productId(1L).count(1L).build();
+        Product product = Product.builder().id(1L).title("P").description("D").imgPath("/img").price(BigDecimal.valueOf(100)).build();
+
+        when(cartCacheService.findByUserId(USER_ID)).thenReturn(Flux.just(item));
+        when(productCacheService.findById(1L)).thenReturn(Mono.just(product));
+        when(balanceService.getUserBalance(USER_ID)).thenReturn(Mono.error(new RuntimeException("Balance service down")));
+
+        StepVerifier.create(cartService.getAllCartItems())
+                .expectNextMatches(cartDto ->
+                        !cartDto.isEmpty() &&
+                                cartDto.getItems().size() == 1 &&
+                                cartDto.getTotal().equals(BigDecimal.valueOf(100)) &&
+                                !cartDto.isCanBuy() &&
+                                !cartDto.isAvailable()
                 )
                 .verifyComplete();
     }

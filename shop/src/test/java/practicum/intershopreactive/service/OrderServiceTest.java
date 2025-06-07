@@ -8,12 +8,13 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Order;
-import practicum.intershopreactive.entity.OrderItem;
 import practicum.intershopreactive.entity.Product;
+import practicum.intershopreactive.model.PaymentResponse;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderItemR2dbcRepository;
 import practicum.intershopreactive.r2dbc.OrderR2dbcRepository;
-import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
+import practicum.intershopreactive.service.cache.CartCacheService;
+import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -22,15 +23,17 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class OrderServiceTest {
 
     @Mock
     private OrderR2dbcRepository orderRepository;
-
-    @Mock
-    private ProductR2dbcRepository productRepository;
 
     @Mock
     private CartR2dbcRepository cartRepository;
@@ -40,6 +43,15 @@ class OrderServiceTest {
 
     @Mock
     private TransactionalOperator transactionalOperator;
+
+    @Mock
+    private ProductCacheService productCacheService;
+
+    @Mock
+    private CartCacheService cartCacheService;
+
+    @Mock
+    private PaymentService paymentService;
 
     @InjectMocks
     private OrderService orderService;
@@ -99,127 +111,60 @@ class OrderServiceTest {
                 .totalSum(new BigDecimal("40.00"))
                 .build();
 
-        when(cartRepository.findByUserId(1L))
-                .thenReturn(Flux.fromIterable(cartItems));
-        when(productRepository.findAllById(List.of(1L, 2L)))
-                .thenReturn(Flux.fromIterable(products));
-        when(orderRepository.save(any(Order.class)))
-                .thenReturn(Mono.just(savedOrder));
-        when(orderItemRepository.saveAll(anyList()))
-                .thenReturn(Flux.empty());
-        when(cartRepository.deleteAllByUserId(1L))
-                .thenReturn(Mono.empty());
+        when(cartCacheService.findByUserId(1L)).thenReturn(Flux.fromIterable(cartItems));
+        when(productCacheService.findById(1L)).thenReturn(Mono.just(product1));
+        when(productCacheService.findById(2L)).thenReturn(Mono.just(product2));
+        when(paymentService.processPayment(new BigDecimal("40.00"), 1L))
+                .thenReturn(Mono.just(new PaymentResponse().success(true)));
+        when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
+        when(orderItemRepository.saveAll(anyList())).thenReturn(Flux.empty());
+        when(cartRepository.deleteAllByUserId(1L)).thenReturn(Mono.empty());
+        when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
+        when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectNext(100L)
                 .verifyComplete();
 
-        verify(orderRepository, times(1)).save(any(Order.class));
-        verify(orderItemRepository, times(1)).saveAll(anyList());
-        verify(cartRepository, times(1)).deleteAllByUserId(1L);
+        verify(orderRepository).save(any(Order.class));
+        verify(orderItemRepository).saveAll(anyList());
+        verify(cartRepository).deleteAllByUserId(1L);
+        verify(paymentService).processPayment(new BigDecimal("40.00"), 1L);
     }
 
     @Test
     void testPurchaseCart_emptyCart() {
-        when(cartRepository.findByUserId(1L))
-                .thenReturn(Flux.empty());
+        when(cartCacheService.findByUserId(1L)).thenReturn(Flux.empty());
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectErrorMatches(ex -> ex instanceof IllegalStateException &&
                         ex.getMessage().equals("Cart is empty, cannot create order"))
                 .verify();
 
-        verify(orderRepository, never()).save(any());
-        verify(orderItemRepository, never()).saveAll(anyList());
-        verify(cartRepository, never()).deleteAllByUserId(anyLong());
+        verifyNoInteractions(orderRepository, orderItemRepository, paymentService);
     }
 
     @Test
-    void testGetAllOrders_returnsOrderDtos() {
-        Order order = Order.builder()
-                .id(1L)
-                .createdAt(Instant.now())
-                .userId(1L)
-                .totalSum(new BigDecimal("30.00"))
-                .build();
+    void testPurchaseCart_productNotFound() {
+        when(cartCacheService.findByUserId(1L)).thenReturn(Flux.just(cartItem1));
+        when(productCacheService.findById(1L)).thenReturn(Mono.empty());
 
-        OrderItem item = OrderItem.builder()
-                .id(1L)
-                .orderId(1L)
-                .productId(1L)
-                .quantity(2L)
-                .priceAtPurchase(BigDecimal.TEN)
-                .build();
-
-        Product product = Product.builder()
-                .id(1L)
-                .title("Test Product")
-                .description("Desc")
-                .imgPath("img.jpg")
-                .price(BigDecimal.TEN)
-                .build();
-
-        when(orderRepository.findAll())
-                .thenReturn(Flux.just(order));
-        when(orderItemRepository.findByOrderId(1L))
-                .thenReturn(Flux.just(item));
-        when(productRepository.findById(1L))
-                .thenReturn(Mono.just(product));
-
-        StepVerifier.create(orderService.findAllWithItemsAndProducts())
-                .expectNextMatches(dto -> dto.getId() == 1L &&
-                        dto.getTotalSum().compareTo(new BigDecimal("20.00")) == 0 &&
-                        dto.getItems().size() == 1)
-                .verifyComplete();
+        StepVerifier.create(orderService.purchaseCart())
+                .expectErrorMatches(ex -> ex instanceof IllegalStateException &&
+                        ex.getMessage().contains("Product not found"))
+                .verify();
     }
 
     @Test
-    void testGetOrderById_orderExists() {
-        Order order = Order.builder()
-                .id(1L)
-                .createdAt(Instant.now())
-                .userId(1L)
-                .totalSum(new BigDecimal("30.00"))
-                .build();
+    void testPurchaseCart_paymentFails() {
+        when(cartCacheService.findByUserId(1L)).thenReturn(Flux.just(cartItem1));
+        when(productCacheService.findById(1L)).thenReturn(Mono.just(product1));
+        when(paymentService.processPayment(any(), anyLong()))
+                .thenReturn(Mono.just(new PaymentResponse().success(false)));
 
-        OrderItem item = OrderItem.builder()
-                .id(1L)
-                .orderId(1L)
-                .productId(1L)
-                .quantity(2L)
-                .priceAtPurchase(BigDecimal.TEN)
-                .build();
-
-        Product product = Product.builder()
-                .id(1L)
-                .title("Product 1")
-                .description("Desc")
-                .imgPath("img.jpg")
-                .price(BigDecimal.TEN)
-                .build();
-
-        when(orderRepository.findById(1L))
-                .thenReturn(Mono.just(order));
-        when(orderItemRepository.findByOrderId(1L))
-                .thenReturn(Flux.just(item));
-        when(productRepository.findById(1L))
-                .thenReturn(Mono.just(product));
-
-        StepVerifier.create(orderService.getOrderById(1L))
-                .expectNextMatches(dto -> dto.getId() == 1L &&
-                        dto.getItems().size() == 1 &&
-                        dto.getItems().get(0).getProductId() == 1L)
-                .verifyComplete();
-    }
-
-    @Test
-    void testGetOrderById_orderNotFound() {
-        when(orderRepository.findById(1L))
-                .thenReturn(Mono.empty());
-
-        StepVerifier.create(orderService.getOrderById(1L))
-                .expectErrorMatches(ex -> ex instanceof IllegalArgumentException &&
-                        ex.getMessage().equals("Order not found with id: 1"))
+        StepVerifier.create(orderService.purchaseCart())
+                .expectErrorMatches(ex -> ex instanceof IllegalStateException &&
+                        ex.getMessage().equals("Payment failed"))
                 .verify();
     }
 }

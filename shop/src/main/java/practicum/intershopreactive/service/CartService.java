@@ -8,8 +8,6 @@ import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.entity.CartItem;
 import practicum.intershopreactive.entity.Product;
 import practicum.intershopreactive.r2dbc.CartR2dbcRepository;
-import practicum.intershopreactive.r2dbc.ProductR2dbcRepository;
-import practicum.intershopreactive.mapper.ProductMapper;
 import practicum.intershopreactive.service.cache.CartCacheService;
 import practicum.intershopreactive.service.cache.ProductCacheService;
 import reactor.core.publisher.Flux;
@@ -19,7 +17,6 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor

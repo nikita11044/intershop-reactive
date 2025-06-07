@@ -47,7 +47,6 @@ dependencies {
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.testcontainers:r2dbc'
-    testImplementation 'it.ozimov:embedded-redis:0.7.3'
 }
 
 // OpenAPI

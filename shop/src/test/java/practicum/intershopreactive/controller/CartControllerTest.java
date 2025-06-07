@@ -10,12 +10,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import practicum.intershopreactive.dto.cart.CartDto;
 import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.service.CartService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.Mockito.when;
 
@@ -32,7 +35,7 @@ class CartControllerTest {
     @Test
     void getCart_shouldReturnEmptyCartInitially() {
         when(cartService.getAllCartItems())
-                .thenReturn(Mono.empty());
+                .thenReturn(Mono.just(createEmptyCart()));
 
         webTestClient.get()
                 .uri("/cart")
@@ -51,9 +54,9 @@ class CartControllerTest {
         when(cartService.addProduct(1L))
                 .thenReturn(Mono.empty());
 
-        ProductDto product = createProduct(1L, "Laptop", new BigDecimal("1500.00"), 6);
+        var cart = createCartWithProduct(1L, "Laptop", new BigDecimal("1500.00"), 6);
         when(cartService.getAllCartItems())
-                .thenReturn(Flux.just(product));
+                .thenReturn(Mono.just(cart));
 
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("action", "PLUS");
@@ -85,14 +88,14 @@ class CartControllerTest {
         when(cartService.removeProduct(1L))
                 .thenReturn(Mono.empty());
 
-        ProductDto productAfterFirstAdd = createProduct(1L, "Monitor", new BigDecimal("300.00"), 1);
-        ProductDto productAfterSecondAdd = createProduct(1L, "Monitor", new BigDecimal("300.00"), 2);
-        ProductDto productAfterDecrement = createProduct(1L, "Monitor", new BigDecimal("300.00"), 1);
+        var cartAfterFirstAdd = createCartWithProduct(1L, "Monitor", new BigDecimal("300.00"), 1);
+        var cartAfterSecondAdd = createCartWithProduct(1L, "Monitor", new BigDecimal("300.00"), 2);
+        var cartAfterDecrement = createCartWithProduct(1L, "Monitor", new BigDecimal("300.00"), 1);
 
         when(cartService.getAllCartItems())
-                .thenReturn(Mono.just(productAfterFirstAdd))
-                .thenReturn(Mono.just(productAfterSecondAdd))
-                .thenReturn(Mono.just(productAfterDecrement));
+                .thenReturn(Mono.just(cartAfterFirstAdd))
+                .thenReturn(Mono.just(cartAfterSecondAdd))
+                .thenReturn(Mono.just(cartAfterDecrement));
 
         MultiValueMap<String, String> plusAction = new LinkedMultiValueMap<>();
         plusAction.add("action", "PLUS");
@@ -168,7 +171,7 @@ class CartControllerTest {
                 .thenReturn(Mono.empty());
 
         when(cartService.getAllCartItems())
-                .thenReturn(Mono.empty());
+                .thenReturn(Mono.just(createEmptyCart()));
 
         MultiValueMap<String, String> plusAction = new LinkedMultiValueMap<>();
         plusAction.add("action", "PLUS");
@@ -225,6 +228,28 @@ class CartControllerTest {
                 .imgPath("test-image.jpg")
                 .count(count)
                 .price(price)
+                .build();
+    }
+
+    private CartDto createCartWithProduct(Long id, String title, BigDecimal price, int count) {
+        return CartDto.builder()
+                .items(List.of(
+                        createProduct(id, title, price, count)
+                ))
+                .total(price.multiply(BigDecimal.valueOf(count)))
+                .empty(false)
+                .available(true)
+                .canBuy(true)
+                .build();
+    }
+
+    private CartDto createEmptyCart() {
+        return CartDto.builder()
+                .items(Collections.emptyList())
+                .total(BigDecimal.ZERO)
+                .empty(true)
+                .available(true)
+                .canBuy(false)
                 .build();
     }
 }
