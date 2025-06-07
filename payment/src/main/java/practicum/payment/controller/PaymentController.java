@@ -22,7 +22,7 @@ public class PaymentController {
 
     @PostMapping
     public Mono<ResponseEntity<PaymentResponse>> processPayment(@RequestBody PaymentRequest request) {
-        Long userId = Long.valueOf(request.getUserId());
+        Long userId = request.getUserId();
         BigDecimal amount = request.getAmount();
 
         return paymentService.processPayment(userId, amount)

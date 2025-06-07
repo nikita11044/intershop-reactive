@@ -102,7 +102,6 @@ class OrderServiceTest {
     @Test
     void testPurchaseCart_successfulPurchase() {
         List<CartItem> cartItems = List.of(cartItem1, cartItem2);
-        List<Product> products = List.of(product1, product2);
 
         Order savedOrder = Order.builder()
                 .id(100L)
