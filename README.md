@@ -1,128 +1,145 @@
 ## About The Project
 
-A simple Spring Boot-based internet shop.
+A simple Spring Boot-based internet shop using reactive technologies and cloud-native components.
 
 ### Built With
 
-* Spring Web Flux
-* Thymeleaf
-* PostgreSQL
-* R2DBC
-* Minio
+- Spring WebFlux
+- Thymeleaf
+- PostgreSQL
+- R2DBC
+- Minio
 
 ### Prerequisites
 
-* Java 21
-* Gradle
-* Docker
+- Java 21
+- Gradle
+- Docker
 
-### Installation
+---
 
-1. Clone the repo
+## Installation
 
-```bash
-git clone https://github.com/nikita11044/intershop-reactive.git
-cd intershop
-```
+1. **Clone the repository**
 
-2. Start the Docker containers
+   ```bash
+   git clone https://github.com/nikita11044/intershop-reactive.git
+   cd intershop
+   ```
+
+2. **Start Docker containers**
+
+   ```bash
+   docker-compose up --build
+   ```
+
+   > 💡 You can customize the database and Minio credentials in `application.properties` and `docker-compose.yml`.
+
+3. **Build the application**
+
+   ```bash
+   ./gradlew build
+   ```
+
+---
+
+## Running the Application
+
+You can run the app in **Docker** (default) or **locally**.
+
+### Option 1: Run in Docker
+
+Docker is pre-configured via `docker-compose.yml`.
 
 ```bash
 docker-compose up --build
 ```
 
-**Note:** You may configure database and minio credentials as you see fit. Just make sure they are the same as the ones in `application.properties`
+- PostgreSQL and Minio are started automatically.
+- App will be available at [http://localhost:8080](http://localhost:8080).
 
-3. Install Application Dependencies
+If you change credentials in `application.properties`, make sure to reflect the same changes in `docker-compose.yml`.
+
+---
+
+### Option 2: Run Locally
+
+1. **Update `application.properties`** to use your local services:
+
+   ```properties
+   spring.r2dbc.url=r2dbc:postgresql://localhost:5432/intershop_db
+   spring.r2dbc.username=your_local_user
+   spring.r2dbc.password=your_local_password
+
+   intershop.file-storage.endpoint=http://localhost:9000
+   ```
+
+2. **Run the app**
+
+   ```bash
+   ./gradlew bootRun
+   ```
+
+- The application will be available at [http://localhost:8080](http://localhost:8080).
+
+---
+
+## Building the Application
+
+To create an executable JAR:
 
 ```bash
 ./gradlew build
 ```
 
-### Running the Application
+Run it with:
 
-You can run this application either in a Docker container or locally on your machine. The application is pre-configured to run in a Docker environment, but with minimal adjustments, it can be run locally as well.
-
-#### Running the Application in Docker
-
-The application is fully configured to be launched in Docker using the provided `docker-compose.yml` file. To get the application running in Docker:
-
-1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/nikita11044/intershop-reactive.git
-    cd intershop
-    ```
-
-2. **Start the Docker containers**:
-    ```bash
-    docker-compose up --build
-    ```
-   This command will build and start the Docker containers, including the PostgreSQL database, Minio file storage, and the app itself.
-
-    - The **PostgreSQL database** is configured to run with the credentials and settings defined in the `application.properties` file.
-    - The **Minio** service is set up for file storage with the necessary access credentials.
-
-3. The application will be available at `http://localhost:8080` by default.
-
-   **Note:** If you wish to customize the database or Minio credentials, you can update the `application.properties` file. Be sure to adjust them in the `docker-compose.yml` file as well to match the new configuration.
-
-#### Running the Application Locally
-
-To run the application locally (outside of Docker), follow these steps:
-
-1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/nikita11044/intershop-reactive.git
-    cd intershop
-    ```
-
-2. **Configure `application.properties`**:
-   By default, the application is set to connect to Docker services (PostgreSQL and Minio). To run the app locally, you’ll need to update the `application.properties` file to match your local setup. Here’s a sample of what you might need to change:
-
-    - Update the database connection settings to point to your local PostgreSQL instance.
-    - Adjust the file storage endpoint to point to a local Minio instance (if using Minio locally) or another storage solution.
-
-   For example:
-    ```properties
-    spring.datasource.url=jdbc:postgresql://localhost:5432/intershop_db
-    spring.datasource.username=your_local_user
-    spring.datasource.password=your_local_password
-
-    intershop.file-storage.endpoint=http://localhost:9000
-    ```
-
-3. **Build the application**:
-    ```bash
-    ./gradlew build
-    ```
-
-4. **Run the application locally**:
-   To run the app on your local machine, use the following Gradle command:
-    ```bash
-    ./gradlew bootRun
-    ```
-   The application will be available at `http://localhost:8080`.
-
-
-### Building the Application 
-To build the app into an executable JAR file, run the following command:
-```bash
-./gradlew build
-```
-The built JAR file will be located in the build/libs/ directory. You can run the JAR file with:
 ```bash
 java -jar build/libs/intershop-reactive-0.0.1-SNAPSHOT.jar
 ```
 
-### Testing the Application
-In the root directory of the project, run the following command to execute all tests:
+---
+
+## Testing the Application
+
+To run unit and integration tests:
+
 ```bash
 ./gradlew test
 ```
-This will run all unit and integration tests and provide a summary of the results in the terminal.
 
-After running the tests, you can check the detailed test reports, which are available in:
+Test reports are available at:
 
-```bash
+```
 build/reports/tests/test/index.html
+```
+
+---
+
+## Database Schema
+
+The application relies on the following two tables:
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE accounts (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    balance NUMERIC(10, 2) NOT NULL
+);
+```
+
+> ⚠️ **Note:**  
+> The application does **not** include any initial data for these tables.  
+> You must manually insert user and account records into the database for the application to function correctly.
+
+Example:
+
+```sql
+INSERT INTO users (name) VALUES ('Alice');
+INSERT INTO accounts (user_id, balance) VALUES (1, 100.00);
 ```
