@@ -1,3 +1,4 @@
+
 version: '3.9'
 name: intershop
 
@@ -72,3 +73,30 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+
+  payment:
+    image: payment
+    container_name: intershop-payment
+    build:
+      context: ./payment
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_LIQUIBASE_URL: jdbc:postgresql://postgres:5432/intershop_db
+      SPRING_LIQUIBASE_USER: intershop_user
+      SPRING_LIQUIBASE_PASSWORD: intershop_password
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/intershop_db
+      SPRING_R2DBC_USERNAME: intershop_user
+      SPRING_R2DBC_PASSWORD: intershop_password
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/master
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
