@@ -34,11 +34,12 @@ class CartControllerTest {
     private CartService cartService;
 
     @Test
-    void getCart_shouldRedirectOrFail_whenNotAuthenticated() {
+    void getCart_shouldRedirect_whenNotAuthenticated() {
         webTestClient.get()
                 .uri("/cart")
                 .exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus()
+                .is3xxRedirection();
     }
 
     @Test

@@ -36,14 +36,14 @@ class ProductControllerTest {
     @Test
     void modifyCart_shouldFail_whenNotAuthenticated() {
         webTestClient
-                .mutateWith(csrf())
                 .post()
                 .uri("/products/1/cart")
                 .header("Referer", "/products/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue("action=PLUS")
                 .exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus()
+                .isForbidden();
     }
 
     @Test

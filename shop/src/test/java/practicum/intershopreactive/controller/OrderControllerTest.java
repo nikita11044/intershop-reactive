@@ -32,11 +32,12 @@ class OrderControllerTest {
     private OrderService orderService;
 
     @Test
-    void getCart_shouldRedirectOrFail_whenNotAuthenticated() {
+    void getCart_shouldRedirect_whenNotAuthenticated() {
         webTestClient.get()
                 .uri("/order")
                 .exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus()
+                .is3xxRedirection();
     }
 
     @Test

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import practicum.payment.model.PaymentRequest;
 import practicum.payment.util.BaseWebTest;
@@ -29,6 +30,22 @@ public class PaymentControllerTest extends BaseWebTest {
     }
 
     @Test
+    void processPayment_shouldFail_whenUnauthorized() {
+        PaymentRequest request = new PaymentRequest()
+                .userId(1L)
+                .amount(new BigDecimal("40.00"));
+
+        webTestClient.post()
+                .uri("/payment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+    }
+
+    @Test
+    @WithMockUser
     void processPayment_shouldSucceed_whenSufficientBalance() {
         PaymentRequest request = new PaymentRequest()
                 .userId(1L)
@@ -45,6 +62,7 @@ public class PaymentControllerTest extends BaseWebTest {
     }
 
     @Test
+    @WithMockUser
     void processPayment_shouldFail_whenInsufficientBalance() {
         PaymentRequest request = new PaymentRequest()
                 .userId(1L)

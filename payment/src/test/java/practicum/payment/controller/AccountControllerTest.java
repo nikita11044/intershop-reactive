@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import practicum.payment.util.BaseWebTest;
 import practicum.payment.util.TestDatabaseHelper;
@@ -28,6 +29,17 @@ public class AccountControllerTest extends BaseWebTest {
     }
 
     @Test
+    void getBalance_withoutAuth_shouldReturnUnauthorized() {
+        webTestClient.get()
+                .uri("/balance/{userId}", 1)
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+
+    @Test
+    @WithMockUser
     void getBalance_shouldReturnBalance() {
         webTestClient.get()
                 .uri("/balance/{userId}", 1)
@@ -40,6 +52,7 @@ public class AccountControllerTest extends BaseWebTest {
     }
 
     @Test
+    @WithMockUser
     void getBalance_shouldReturn404_whenAccountMissing() {
         webTestClient.get()
                 .uri("/balance/{userId}", 2)
