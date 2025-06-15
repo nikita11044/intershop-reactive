@@ -4,9 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
-import org.springframework.web.reactive.function.client.WebClientRequestException;
-import practicum.intershopreactive.client.PaymentClient;
-import practicum.intershopreactive.model.PaymentRequest;
 import practicum.intershopreactive.dto.order.OrderDto;
 import practicum.intershopreactive.dto.order.OrderItemDto;
 import practicum.intershopreactive.entity.CartItem;
@@ -22,7 +19,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.net.ConnectException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,92 +30,89 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class OrderService {
-    // TODO: add user logic
-    private static final long USER_ID = 1;
 
     private final OrderR2dbcRepository orderRepository;
     private final CartR2dbcRepository cartRepository;
     private final OrderItemR2dbcRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
-
     private final ProductCacheService productCacheService;
     private final CartCacheService cartCacheService;
-
     private final PaymentService paymentService;
+    private final UserService userService;
 
     @Transactional
     public Mono<Long> purchaseCart() {
-        return cartCacheService.findByUserId(USER_ID)
-                .collectList()
-                .flatMap(cartItems -> {
-                    if (cartItems.isEmpty()) {
-                        return Mono.error(new IllegalStateException("Cart is empty, cannot create order"));
-                    }
-
-                    List<Long> productIds = cartItems.stream()
-                            .map(CartItem::getProductId)
-                            .toList();
-
-                    return Flux.fromIterable(productIds)
-                            .flatMap(productCacheService::findById)
-                            .collectList()
-                            .flatMap(products -> {
-                                Map<Long, Product> productMap = products.stream()
-                                        .collect(Collectors.toMap(Product::getId, Function.identity()));
-
-                                List<OrderItem> orderItems = new ArrayList<>();
-                                BigDecimal totalSum = BigDecimal.ZERO;
-
-                                for (CartItem cartItem : cartItems) {
-                                    Product product = productMap.get(cartItem.getProductId());
-                                    if (product == null) {
-                                        return Mono.error(new IllegalStateException("Product not found: " + cartItem.getProductId()));
+        return userService.getCurrentUserId()
+                .flatMap(userId ->
+                        cartCacheService.findByUserId(userId)
+                                .collectList()
+                                .flatMap(cartItems -> {
+                                    if (cartItems.isEmpty()) {
+                                        return Mono.error(new IllegalStateException("Cart is empty, cannot create order"));
                                     }
 
-                                    BigDecimal itemTotal = product.getPrice().multiply(BigDecimal.valueOf(cartItem.getCount()));
-                                    totalSum = totalSum.add(itemTotal);
+                                    List<Long> productIds = cartItems.stream()
+                                            .map(CartItem::getProductId)
+                                            .toList();
 
-                                    OrderItem orderItem = OrderItem.builder()
-                                            .orderId(null)
-                                            .productId(product.getId())
-                                            .quantity(cartItem.getCount())
-                                            .priceAtPurchase(product.getPrice())
-                                            .build();
-                                    orderItems.add(orderItem);
-                                }
+                                    return Flux.fromIterable(productIds)
+                                            .flatMap(productCacheService::findById)
+                                            .collectList()
+                                            .flatMap(products -> {
+                                                Map<Long, Product> productMap = products.stream()
+                                                        .collect(Collectors.toMap(Product::getId, Function.identity()));
 
-                                Order order = Order.builder()
-                                        .createdAt(Instant.now())
-                                        .userId(USER_ID)
-                                        .totalSum(totalSum)
-                                        .build();
+                                                List<OrderItem> orderItems = new ArrayList<>();
+                                                BigDecimal totalSum = BigDecimal.ZERO;
 
-                                return paymentService
-                                        .processPayment(
-                                                order.getTotalSum(),
-                                                order.getUserId()
-                                        ).flatMap(response -> {
-                                            if (Boolean.TRUE.equals(response.getSuccess())) {
-                                                return orderRepository.save(order)
-                                                        .flatMap(savedOrder -> {
-                                                            orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
+                                                for (CartItem cartItem : cartItems) {
+                                                    Product product = productMap.get(cartItem.getProductId());
+                                                    if (product == null) {
+                                                        return Mono.error(new IllegalStateException("Product not found: " + cartItem.getProductId()));
+                                                    }
 
-                                                            Mono<Void> saveOrderItems = orderItemRepository.saveAll(orderItems).then();
-                                                            Mono<Void> deleteCartItems = cartRepository.deleteAllByUserId(USER_ID);
+                                                    BigDecimal itemTotal = product.getPrice().multiply(BigDecimal.valueOf(cartItem.getCount()));
+                                                    totalSum = totalSum.add(itemTotal);
 
-                                                            return Mono.when(saveOrderItems, deleteCartItems)
-                                                                    .then(Mono.when(
-                                                                            cartCacheService.evictCartItemsCache(),
-                                                                            productCacheService.evictProductsCache()
-                                                                    ))
-                                                                    .thenReturn(savedOrder.getId());
+                                                    OrderItem orderItem = OrderItem.builder()
+                                                            .orderId(null)
+                                                            .productId(product.getId())
+                                                            .quantity(cartItem.getCount())
+                                                            .priceAtPurchase(product.getPrice())
+                                                            .build();
+                                                    orderItems.add(orderItem);
+                                                }
+
+                                                Order order = Order.builder()
+                                                        .createdAt(Instant.now())
+                                                        .userId(userId)
+                                                        .totalSum(totalSum)
+                                                        .build();
+
+                                                return paymentService.processPayment(order.getTotalSum(), order.getUserId())
+                                                        .flatMap(response -> {
+                                                            if (Boolean.TRUE.equals(response.getSuccess())) {
+                                                                return orderRepository.save(order)
+                                                                        .flatMap(savedOrder -> {
+                                                                            orderItems.forEach(item -> item.setOrderId(savedOrder.getId()));
+
+                                                                            Mono<Void> saveOrderItems = orderItemRepository.saveAll(orderItems).then();
+                                                                            Mono<Void> deleteCartItems = cartRepository.deleteAllByUserId(userId);
+
+                                                                            return Mono.when(saveOrderItems, deleteCartItems)
+                                                                                    .then(Mono.when(
+                                                                                            cartCacheService.evictCartItemsCache(),
+                                                                                            productCacheService.evictProductsCache()
+                                                                                    ))
+                                                                                    .thenReturn(savedOrder.getId());
+                                                                        });
+                                                            } else {
+                                                                return Mono.error(new IllegalStateException("Payment failed"));
+                                                            }
                                                         });
-                                            } else {
-                                                return Mono.error(new IllegalStateException("Payment failed"));
-                                            }
-                                        });
-                            });
-                })
+                                            });
+                                })
+                )
                 .as(transactionalOperator::transactional);
     }
 
@@ -198,5 +191,4 @@ public class OrderService {
                                         .build())
                 );
     }
-
 }
