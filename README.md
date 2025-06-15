@@ -118,6 +118,12 @@ build/reports/tests/test/index.html
 
 ---
 
+## Mock Data
+
+The application has two mock users: ADMIN (administrator) and John Doe (customer). Password for both: poison_pen
+
+---
+
 ## Keycloak
 
 The application uses Keycloak as OAuth provider
