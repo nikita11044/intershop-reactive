@@ -53,8 +53,13 @@ class OrderServiceTest {
     @Mock
     private PaymentService paymentService;
 
+    @Mock
+    private UserService userService;
+
     @InjectMocks
     private OrderService orderService;
+
+    private static final long USER_ID = 1L;
 
     private Product product1;
     private Product product2;
@@ -120,6 +125,7 @@ class OrderServiceTest {
         when(cartRepository.deleteAllByUserId(1L)).thenReturn(Mono.empty());
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectNext(100L)
@@ -134,6 +140,7 @@ class OrderServiceTest {
     @Test
     void testPurchaseCart_emptyCart() {
         when(cartCacheService.findByUserId(1L)).thenReturn(Flux.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectErrorMatches(ex -> ex instanceof IllegalStateException &&
@@ -147,6 +154,7 @@ class OrderServiceTest {
     void testPurchaseCart_productNotFound() {
         when(cartCacheService.findByUserId(1L)).thenReturn(Flux.just(cartItem1));
         when(productCacheService.findById(1L)).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectErrorMatches(ex -> ex instanceof IllegalStateException &&
@@ -160,6 +168,7 @@ class OrderServiceTest {
         when(productCacheService.findById(1L)).thenReturn(Mono.just(product1));
         when(paymentService.processPayment(any(), anyLong()))
                 .thenReturn(Mono.just(new PaymentResponse().success(false)));
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(orderService.purchaseCart())
                 .expectErrorMatches(ex -> ex instanceof IllegalStateException &&

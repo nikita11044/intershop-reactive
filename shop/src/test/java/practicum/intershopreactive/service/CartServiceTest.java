@@ -40,6 +40,9 @@ public class CartServiceTest {
     @Mock
     private BalanceService balanceService;
 
+    @Mock
+    private UserService userService;
+
     @InjectMocks
     private CartService cartService;
 
@@ -64,6 +67,7 @@ public class CartServiceTest {
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.addProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -77,6 +81,7 @@ public class CartServiceTest {
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.addProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -95,6 +100,7 @@ public class CartServiceTest {
         when(cartRepository.save(any(CartItem.class))).thenReturn(Mono.just(cartItem));
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -109,6 +115,7 @@ public class CartServiceTest {
         when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -118,6 +125,7 @@ public class CartServiceTest {
 
     @Test
     void testRemoveProduct_productNotFound() {
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
 
         StepVerifier.create(cartService.removeProduct(PRODUCT_ID))
@@ -131,6 +139,7 @@ public class CartServiceTest {
         when(cartRepository.deleteById(cartItem.getId())).thenReturn(Mono.empty());
         when(cartCacheService.evictCartItemsCache()).thenReturn(Mono.empty());
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .verifyComplete();
@@ -139,6 +148,7 @@ public class CartServiceTest {
     @Test
     void testDeleteProduct_productNotFound() {
         when(cartRepository.findByProductIdAndUserId(PRODUCT_ID, USER_ID)).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.deleteProduct(PRODUCT_ID))
                 .expectError(NoSuchElementException.class)
@@ -157,6 +167,7 @@ public class CartServiceTest {
         when(productCacheService.findById(1L)).thenReturn(Mono.just(product1));
         when(productCacheService.findById(2L)).thenReturn(Mono.just(product2));
         when(balanceService.getUserBalance(USER_ID)).thenReturn(Mono.just(new BalanceResponse().balance(BigDecimal.valueOf(200)).userId(USER_ID)));
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.getAllCartItems())
                 .expectNextMatches(cartDto ->
@@ -172,6 +183,7 @@ public class CartServiceTest {
     @Test
     void testGetAllCartItems_empty() {
         when(cartCacheService.findByUserId(USER_ID)).thenReturn(Flux.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.getAllCartItems())
                 .expectNextMatches(cartDto ->
@@ -192,6 +204,7 @@ public class CartServiceTest {
         when(cartCacheService.findByUserId(USER_ID)).thenReturn(Flux.just(item));
         when(productCacheService.findById(1L)).thenReturn(Mono.just(product));
         when(balanceService.getUserBalance(USER_ID)).thenReturn(Mono.error(new RuntimeException("Balance service down")));
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(cartService.getAllCartItems())
                 .expectNextMatches(cartDto ->

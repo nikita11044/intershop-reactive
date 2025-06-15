@@ -6,6 +6,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.LinkedMultiValueMap;
@@ -13,7 +14,6 @@ import org.springframework.util.MultiValueMap;
 import practicum.intershopreactive.dto.cart.CartDto;
 import practicum.intershopreactive.dto.product.ProductDto;
 import practicum.intershopreactive.service.CartService;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 @WebFluxTest(CartController.class)
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +34,7 @@ class CartControllerTest {
     private CartService cartService;
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void getCart_shouldReturnEmptyCartInitially() {
         when(cartService.getAllCartItems())
                 .thenReturn(Mono.just(createEmptyCart()));
@@ -50,6 +52,7 @@ class CartControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void modifyCartItem_shouldAddProductToCartAndCartShouldReflectIt() {
         when(cartService.addProduct(1L))
                 .thenReturn(Mono.empty());
@@ -61,7 +64,9 @@ class CartControllerTest {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("action", "PLUS");
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(formData)
@@ -81,6 +86,7 @@ class CartControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void modifyCartItem_shouldIncrementAndDecrementCartCorrectly() {
         when(cartService.addProduct(1L))
                 .thenReturn(Mono.empty());
@@ -103,7 +109,9 @@ class CartControllerTest {
         MultiValueMap<String, String> minusAction = new LinkedMultiValueMap<>();
         minusAction.add("action", "MINUS");
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(plusAction)
@@ -122,7 +130,9 @@ class CartControllerTest {
                     assert body.contains("300.00");
                 });
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(plusAction)
@@ -141,7 +151,9 @@ class CartControllerTest {
                     assert body.contains("600.00");
                 });
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(minusAction)
@@ -162,6 +174,7 @@ class CartControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void modifyCartItem_shouldDeleteItemFromCart() {
         when(cartService.addProduct(1L))
                 .thenReturn(Mono.empty());
@@ -178,14 +191,18 @@ class CartControllerTest {
         MultiValueMap<String, String> deleteAction = new LinkedMultiValueMap<>();
         deleteAction.add("action", "DELETE");
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(plusAction)
                 .exchange()
                 .expectStatus().is3xxRedirection();
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(deleteAction)
@@ -205,11 +222,14 @@ class CartControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void modifyCartItem_shouldReturn500ForInvalidAction() {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("action", "INVALID");
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(formData)

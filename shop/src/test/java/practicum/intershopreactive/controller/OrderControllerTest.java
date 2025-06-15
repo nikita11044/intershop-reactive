@@ -6,6 +6,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import practicum.intershopreactive.dto.order.OrderDto;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 @WebFluxTest(OrderController.class)
 @ExtendWith(MockitoExtension.class)
@@ -30,12 +32,15 @@ class OrderControllerTest {
     private OrderService orderService;
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void createOrder_shouldRedirectToOrderPageWithNewOrderParam() {
         Long orderId = 1L;
         when(orderService.purchaseCart())
                 .thenReturn(Mono.just(orderId));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/orders")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .exchange()
@@ -44,6 +49,7 @@ class OrderControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void listOrders_shouldReturnOrdersViewWithModel() {
         OrderDto order = createOrder(1L, List.of(
                 createOrderItem(new BigDecimal("999.99"), 1)
@@ -64,6 +70,7 @@ class OrderControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void getOrder_shouldReturnOrderViewWithDetails() {
         Long orderId = 1L;
         OrderDto order = createOrder(orderId, List.of(

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import practicum.intershopreactive.dto.PagingDto;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 @WebFluxTest(ProductController.class)
 class ProductControllerTest {
@@ -32,6 +34,7 @@ class ProductControllerTest {
     private CartService cartService;
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void listProducts_shouldReturnPageViewWithProductList() {
         var product = ProductDto
                 .builder()
@@ -72,6 +75,7 @@ class ProductControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void getProduct_shouldReturnProductPage() {
         var product = ProductDto
                 .builder()
@@ -97,10 +101,14 @@ class ProductControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void modifyCart_shouldHandleValidPlusAction() {
         when(cartService.addProduct(1L)).thenReturn(Mono.empty());
 
-        webTestClient.post().uri("/products/1/cart")
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/products/1/cart")
                 .header("Referer", "/products/1")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue("action=PLUS")

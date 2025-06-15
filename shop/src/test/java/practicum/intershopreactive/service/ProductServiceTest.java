@@ -39,8 +39,11 @@ class ProductServiceTest {
     @Mock private ProductMapper productMapper;
     @Mock private FileService fileService;
     @Mock private ProductCacheService productCacheService;
+    @Mock private UserService userService;
 
     @InjectMocks private ProductService productService;
+
+    private static final long USER_ID = 1L;
 
     private Product testProduct;
     private CreateProductDto testCreateProductDto;
@@ -65,6 +68,7 @@ class ProductServiceTest {
         when(productCacheService.findById(productId)).thenReturn(Mono.just(testProduct));
         when(cartRepository.findByProductIdAndUserId(eq(productId), anyLong()))
                 .thenReturn(Mono.just(CartItem.builder().count(5L).build()));
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(productService.getProductById(productId))
                 .expectNextMatches(dto -> dto.getId().equals(productId) && dto.getCount() == 5)
@@ -79,6 +83,7 @@ class ProductServiceTest {
         when(productCacheService.findById(productId)).thenReturn(Mono.empty());
         when(cartRepository.findByProductIdAndUserId(eq(productId), anyLong()))
                 .thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(productService.getProductById(productId))
                 .expectErrorMatches(e -> e instanceof IllegalArgumentException &&
@@ -98,6 +103,7 @@ class ProductServiceTest {
                 .thenReturn(Flux.fromIterable(products));
         when(cartRepository.findByUserId(anyLong())).thenReturn(Flux.empty());
         when(productRepository.countProducts(eq(search), eq(searchPattern))).thenReturn(Mono.just(1L));
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(productService.findProducts(search, sort, pageSize, pageNumber))
                 .expectNextMatches(page -> page.getItems().size() == 1 &&
@@ -126,6 +132,7 @@ class ProductServiceTest {
         when(productRepository.save(any())).thenReturn(Mono.just(savedProduct));
         when(cartRepository.save(any())).thenReturn(Mono.just(new CartItem()));
         when(productCacheService.evictProductsCache()).thenReturn(Mono.empty());
+        when(userService.getCurrentUserId()).thenReturn(Mono.just(USER_ID));
 
         StepVerifier.create(productService.addProductsWithFiles(dtos, files))
                 .expectNext(savedProduct)
