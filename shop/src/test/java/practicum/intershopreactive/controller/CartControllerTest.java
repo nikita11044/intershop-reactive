@@ -34,6 +34,14 @@ class CartControllerTest {
     private CartService cartService;
 
     @Test
+    void getCart_shouldRedirectOrFail_whenNotAuthenticated() {
+        webTestClient.get()
+                .uri("/cart")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
     @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void getCart_shouldReturnEmptyCartInitially() {
         when(cartService.getAllCartItems())

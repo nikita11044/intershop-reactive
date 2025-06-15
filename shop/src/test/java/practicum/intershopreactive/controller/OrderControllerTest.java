@@ -32,6 +32,14 @@ class OrderControllerTest {
     private OrderService orderService;
 
     @Test
+    void getCart_shouldRedirectOrFail_whenNotAuthenticated() {
+        webTestClient.get()
+                .uri("/order")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
     @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void createOrder_shouldRedirectToOrderPageWithNewOrderParam() {
         Long orderId = 1L;

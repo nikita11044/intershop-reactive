@@ -34,6 +34,19 @@ class ProductControllerTest {
     private CartService cartService;
 
     @Test
+    void modifyCart_shouldFail_whenNotAuthenticated() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/products/1/cart")
+                .header("Referer", "/products/1")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue("action=PLUS")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
     @WithMockUser(username = "John Doe", roles = {"CUSTOMER"})
     void listProducts_shouldReturnPageViewWithProductList() {
         var product = ProductDto
