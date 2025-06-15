@@ -5,9 +5,15 @@
     <title>Add Products</title>
 </head>
 <body>
+<a th:if="${role == 'ROLE_GUEST'}" href="/login" style="float:right;">
+    <b>ВОЙТИ&cudarrr;</b>
+</a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/logout" style="float:right;">
+    <b>ВЫЙТИ&cudarrr;</b>
+</a>
 <a href="/products" style="float:right;"><b>ГЛАВНАЯ &cudarrr;</b></a>
-<a href="/orders" style="float:right;"><b>ЗАКАЗЫ &cudarrr;</b></a>
-<a href="/cart" style="float:right;"><b>КОРЗИНА &cudarrr;</b></a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/orders" style="float:right;"><b>ЗАКАЗЫ &cudarrr;</b></a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/cart" style="float:right;"><b>КОРЗИНА &cudarrr;</b></a>
 
 <form th:action="@{/products}" method="post" enctype="multipart/form-data" th:object="${productForm}">
     <div th:each="product, iterStat : ${productForm.products}">

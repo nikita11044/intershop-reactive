@@ -3,6 +3,7 @@ package practicum.intershopreactive.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import practicum.intershopreactive.dto.product.ProductFormDto;
 import practicum.intershopreactive.service.CartService;
 import practicum.intershopreactive.service.ProductService;
 import practicum.intershopreactive.util.ActionType;
+import practicum.intershopreactive.util.SecurityHelper;
 import practicum.intershopreactive.util.SortingType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -35,6 +37,7 @@ public class ProductController {
 
     @GetMapping
     public Mono<String> listProducts(
+            Authentication authentication,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "NO") SortingType sort,
             @RequestParam(defaultValue = "10") int pageSize,
@@ -47,15 +50,17 @@ public class ProductController {
                     model.addAttribute("search", search);
                     model.addAttribute("sort", sort.name());
                     model.addAttribute("paging", page.getPaging());
+                    model.addAttribute("role", SecurityHelper.getRole(authentication));
                     return Mono.just("products");
                 });
     }
 
     @GetMapping("/new")
-    public Mono<String> showProductForm(Model model) {
+    public Mono<String> showProductForm(Authentication authentication, Model model) {
         ProductFormDto productForm = new ProductFormDto();
         productForm.setProducts(List.of(new CreateProductDto(), new CreateProductDto(), new CreateProductDto()));
         model.addAttribute("productForm", productForm);
+        model.addAttribute("role", SecurityHelper.getRole(authentication));
         return Mono.just("add-products");
     }
 
@@ -73,9 +78,15 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public Mono<String> getProduct(@PathVariable Long id, Model model) {
+    public Mono<String> getProduct(
+            Authentication authentication,
+            @PathVariable Long id, Model model
+    ) {
         return productService.getProductById(id)
-                .doOnNext(product -> model.addAttribute("item", product))
+                .doOnNext(product -> {
+                    model.addAttribute("item", product);
+                    model.addAttribute("role", SecurityHelper.getRole(authentication));
+                })
                 .thenReturn("product");
     }
 

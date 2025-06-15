@@ -7,13 +7,19 @@
 </head>
 
 <body>
+<a th:if="${role == 'ROLE_GUEST'}" href="/login" style="float:right;">
+    <b>ВОЙТИ&cudarrr;</b>
+</a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/logout" style="float:right;">
+    <b>ВЫЙТИ&cudarrr;</b>
+</a>
 <a href="/products" style="float:right;">
     <b>ГЛАВНАЯ &cudarrr;</b>
 </a>
-<a href="/cart" style="float:right;">
+<a th:if="${role != 'ROLE_GUEST'}" href="/cart" style="float:right;">
     <b>КОРЗИНА &cudarrr;</b>
 </a>
-<a href="/products/new" style="float:right;">
+<a th:if="${role == 'ROLE_ADMIN'}" href="/products/new" style="float:right;">
     <b>ДОБАВИТЬ ТОВАРЫ &cudarrr;</b>
 </a>
 <table style="width:70%;margin-left:auto;margin-right:auto;">

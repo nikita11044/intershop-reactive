@@ -39,13 +39,19 @@
 </head>
 
 <body>
-<a href="/orders" style="float:right;">
+<a th:if="${role == 'ROLE_GUEST'}" href="/login" style="float:right;">
+    <b>ВОЙТИ&cudarrr;</b>
+</a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/logout" style="float:right;">
+    <b>ВЫЙТИ&cudarrr;</b>
+</a>
+<a th:if="${role != 'ROLE_GUEST'}" href="/orders" style="float:right;">
     <b>ЗАКАЗЫ &cudarrr;</b>
 </a>
-<a href="/cart" style="float:right;">
+<a th:if="${role != 'ROLE_GUEST'}" href="/cart" style="float:right;">
     <b>КОРЗИНА &cudarrr;</b>
 </a>
-<a href="/products/new" style="float:right;">
+<a th:if="${role == 'ROLE_ADMIN'}" href="/products/new" style="float:right;">
     <b>ДОБАВИТЬ ТОВАРЫ &cudarrr;</b>
 </a>
 <table style="width:70%;margin-left:auto;margin-right:auto;">
@@ -93,7 +99,7 @@
         <div class="product-title" th:text="${item.getTitle()}"></div>
         <div class="product-price" th:text="${item.getPrice()}+' руб.'"></div>
         <div class="product-description" th:text="${item.getDescription()}"></div>
-        <form th:action="${'/products/' + item.getId() + '/cart'}" method="post">
+        <form th:if="${role != 'ROLE_GUEST'}" th:action="${'/products/' + item.getId() + '/cart'}" method="post">
             <button name="action" value="minus">-</button>
             <span th:text="${item.getCount()}"></span>
             <button name="action" value="plus">+</button>

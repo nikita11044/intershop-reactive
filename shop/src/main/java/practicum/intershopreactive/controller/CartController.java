@@ -1,6 +1,7 @@
 package practicum.intershopreactive.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import practicum.intershopreactive.dto.cart.CartActionFormDto;
 import practicum.intershopreactive.service.CartService;
 import practicum.intershopreactive.util.ActionType;
+import practicum.intershopreactive.util.SecurityHelper;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -23,7 +25,7 @@ public class CartController {
     private final CartService cartService;
 
     @GetMapping
-    public Mono<String> getCart(Model model) {
+    public Mono<String> getCart(Authentication authentication, Model model) {
         return cartService.getAllCartItems()
                 .map(cart -> {
                     model.addAttribute("items", cart.getItems());
@@ -31,6 +33,7 @@ public class CartController {
                     model.addAttribute("empty", cart.isEmpty());
                     model.addAttribute("canBuy", cart.isCanBuy());
                     model.addAttribute("available", cart.isAvailable());
+                    model.addAttribute("role", SecurityHelper.getRole(authentication));
                     return "cart";
                 });
     }
