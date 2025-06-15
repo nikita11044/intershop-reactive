@@ -60,7 +60,7 @@
     </tr>
     <tr>
         <td style="text-align:right">
-            <form action="/buy" method="post" th:if="${!empty and canBuy and available}">
+            <form action="/orders" method="post" th:if="${!empty and canBuy and available}">
                 <button>Купить</button>
             </form>
             <span th:if="${!canBuy and available}">Недостаточно средств</span>

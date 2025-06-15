@@ -13,7 +13,8 @@ public class AccountService {
     private final AccountR2dbcRepository accountRepository;
 
     public Mono<BalanceResponse> getBalance(Long userId) {
-        return accountRepository.findByUserId(userId)
+        return accountRepository
+                .findByUserId(userId)
                 .map(account -> new BalanceResponse()
                         .userId(account.getUserId().toString())
                         .balance(account.getBalance())

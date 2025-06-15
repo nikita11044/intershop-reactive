@@ -119,3 +119,10 @@ components:
           description: Error message
       required:
         - error
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+security:
+  - bearerAuth: []
