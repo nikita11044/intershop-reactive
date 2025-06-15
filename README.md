@@ -116,17 +116,10 @@ build/reports/tests/test/index.html
 
 ---
 
-## Database Schema
+## Keycloak
 
-The application relies on the following two tables: users and account
+The application uses Keycloak as OAuth provider
 
 > ⚠️ **Note:**  
-> The application does **not** include any initial data for these tables.  
-> You must manually insert user and account records into the database for the application to function correctly.
-
-Example:
-
-```sql
-INSERT INTO users (name) VALUES ('Alice');
-INSERT INTO accounts (user_id, balance) VALUES (1, 100.00);
-```
+> You must manually create client in keycloak in advance for the application to function correctly.
+> You can use example data from application.properties

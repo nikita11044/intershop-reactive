@@ -98,11 +98,7 @@ public class ProductController {
     ) {
         ActionType actionType;
 
-        try {
-            actionType = ActionType.valueOf(dto.getAction().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return Mono.error(new IllegalArgumentException("Unknown action: " + dto.getAction()));
-        }
+        actionType = ActionType.valueOf(dto.getAction().toUpperCase());
 
         Mono<Void> actionMono;
         switch (actionType) {
