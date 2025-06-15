@@ -9,6 +9,8 @@ A simple Spring Boot-based internet shop using reactive technologies and cloud-n
 - PostgreSQL
 - R2DBC
 - Minio
+- Keycloak
+- Redis
 
 ### Prerequisites
 
