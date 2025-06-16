@@ -97,7 +97,9 @@
             <img class="product-image" width="300" height="300" th:src="${item.getImgPath()}">
         </a>
         <div class="product-title" th:text="${item.getTitle()}"></div>
-        <div class="product-price" th:text="${item.getPrice()}+' руб.'"></div>
+        <div class="product-price"
+             th:text="${#numbers.formatDecimal(item.getPrice(), 0, item.getPrice().intValue() == item.getPrice() ? 0 : 2)} + ' руб.'">
+        </div>
         <div class="product-description" th:text="${item.getDescription()}"></div>
         <form th:if="${role != 'ROLE_GUEST'}" th:action="${'/products/' + item.getId() + '/cart'}" method="post">
             <button name="action" value="minus">-</button>

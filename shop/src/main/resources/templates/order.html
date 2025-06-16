@@ -29,7 +29,7 @@
 <table style="width:70%;margin-left:auto;margin-right:auto;">
     <tr>
         <td>
-            <h2 th:text="${'Заказ №'+order.getId()}"></h2>
+            <h2 th:text="${'Заказ №' + order.getId()}"></h2>
         </td>
     </tr>
     <tr th:each="item : ${order.getItems()}">
@@ -37,7 +37,7 @@
             <table>
                 <tr>
                     <td>
-                        <a th:href="${'/items/'+item.getId()}">
+                        <a th:href="${'/items/' + item.getId()}">
                             <img width="300" height="300" th:src="${item.getImgPath()}">
                         </a>
                     </td>
@@ -47,10 +47,10 @@
                         <b th:text="${item.getTitle()}"></b>
                     </td>
                     <td>
-                        <b th:text="${item.getQuantity()}+' шт.'"></b>
+                        <b th:text="${item.getQuantity()} + ' шт.'"></b>
                     </td>
                     <td>
-                        <b th:text="${item.getPriceAtPurchase()*item.getQuantity()}+' руб.'"></b>
+                        <b th:text="${#numbers.formatDecimal(item.getPriceAtPurchase() * item.getQuantity(), 0, (item.getPriceAtPurchase() * item.getQuantity()).intValue() == (item.getPriceAtPurchase() * item.getQuantity()) ? 0 : 2)} + ' руб.'"></b>
                     </td>
                 </tr>
             </table>
@@ -58,7 +58,7 @@
     </tr>
     <tr>
         <td>
-            <h3 th:text="${'Сумма: '+order.getTotalSum()}+' руб.'"></h3>
+            <h3 th:text="'Сумма: ' + ${#numbers.formatDecimal(order.getTotalSum(), 0, order.getTotalSum().intValue() == order.getTotalSum() ? 0 : 2)} + ' руб.'"></h3>
         </td>
     </tr>
 </table>

@@ -31,7 +31,9 @@
         </p>
         <p>
             <b th:text="${item.getTitle()}"></b>
-            <b th:text="${item.getPrice()}+' руб.'" style="text-align:right;"></b>
+        <div class="product-price"
+             th:text="${#numbers.formatDecimal(item.getPrice(), 0, item.getPrice().intValue() == item.getPrice() ? 0 : 2)} + ' руб.'">
+        </div>
         </p>
         <p>
             <span th:text="${item.getDescription()}"></span>

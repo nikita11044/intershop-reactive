@@ -36,4 +36,7 @@ public class Product {
     @Min(0)
     @Column("price")
     private BigDecimal price;
+
+    @Column("count")
+    private Integer count;
 }

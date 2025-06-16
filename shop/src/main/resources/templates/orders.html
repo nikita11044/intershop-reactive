@@ -26,15 +26,21 @@
     <tr th:each="order : ${orders}">
         <td>
             <h2>
-                <a th:text="${'Заказ №'+order.getId()}" th:href="${'/orders/'+order.getId()}"></a>
+                <a th:text="${'Заказ №' + order.getId()}" th:href="${'/orders/' + order.getId()}"></a>
             </h2>
             <table>
                 <tr th:each="item : ${order.getItems()}">
-                    <td th:text="${item.getTitle()+' ('+item.getQuantity()+' шт.) '+(item.getPriceAtPurchase()*item.getQuantity())+' руб.'}"></td>
+                    <td th:text="${item.getTitle() + ' (' + item.getQuantity() + ' шт.) '
+                        + #numbers.formatDecimal(item.getPriceAtPurchase() * item.getQuantity(),
+                            0, (item.getPriceAtPurchase() * item.getQuantity()).intValue() == (item.getPriceAtPurchase() * item.getQuantity()) ? 0 : 2)
+                        + ' руб.'}"></td>
                 </tr>
             </table>
             <p>
-                <b th:text="${'Сумма: '+order.getTotalSum()}+' руб.'"></b>
+                <b th:text="'Сумма: '
+                    + ${#numbers.formatDecimal(order.getTotalSum(),
+                        0, order.getTotalSum().intValue() == order.getTotalSum() ? 0 : 2)}
+                    + ' руб.'"></b>
             </p>
         </td>
     </tr>
